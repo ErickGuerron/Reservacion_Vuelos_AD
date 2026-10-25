@@ -1,0 +1,47 @@
+/* Vista de vuelos: selectores de vista, tarjetas de boleto y tabla. */
+
+.vista-vuelos .campo-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.vista-vuelos .campo-select:focus,
+.vista-vuelos input:focus {
+  outline: none;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+/* Botón de vista activo: fondo blanco; el inactivo se ve apagado. */
+.vista-vuelos .boton-vista {
+  color: #44474c;
+  transition: all 200ms ease;
+}
+
+.vista-vuelos .boton-vista[aria-pressed="true"] {
+  background: #ffffff;
+  color: #191c1e;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+/* Boleto: la parte lateral con muescas de corte. */
+.vista-vuelos .muesca {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: #f7f9fb;
+  position: absolute;
+  left: -0.75rem;
+}
+
+.vista-vuelos .boleto[data-agotado="true"] {
+  opacity: 0.85;
+}
+
+.vista-vuelos .boton-reservar:disabled {
+  cursor: not-allowed;
+  background: #e0e3e5;
+  color: rgba(68, 71, 76, 0.5);
+}

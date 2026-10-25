@@ -1,0 +1,69 @@
+/* Mis reservas: filtros, tarjetas, modales y notificación. */
+
+.vista-mis-reservas .filtro {
+  color: #44474c;
+  transition: all 200ms ease;
+}
+
+.vista-mis-reservas .filtro[aria-pressed="true"] {
+  background: #ffffff;
+  color: #191c1e;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.vista-mis-reservas .reserva {
+  transition: opacity 300ms ease, filter 300ms ease;
+}
+
+.vista-mis-reservas .reserva[data-estado="cancelada"] {
+  opacity: 0.45;
+  filter: grayscale(100%);
+}
+
+.vista-mis-reservas .modal-cancelar .caja,
+.vista-mis-reservas .modal-json .caja {
+  animation: entrada 180ms ease-out;
+}
+
+@keyframes entrada {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.vista-mis-reservas .modal-cancelar,
+.vista-mis-reservas .modal-json {
+  display: none;
+}
+
+.vista-mis-reservas .modal-cancelar.abierto,
+.vista-mis-reservas .modal-json.abierto {
+  display: flex;
+}
+
+.vista-mis-reservas .toast {
+  transition: opacity 300ms ease, transform 300ms ease;
+  transform: translateY(1rem);
+}
+
+.vista-mis-reservas .toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.vista-mis-reservas .icono-girando {
+  animation: girar 800ms linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pyjwt
+httpx
+email-validator
+python-dotenv
+pyodbc
+pytest
+dotenv

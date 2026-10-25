@@ -1,0 +1,13 @@
+/* Galería de estaciones: zoom suave al pasar el cursor y degradado para leer el texto. */
+
+.hub-estaciones .imagen {
+  transition: transform 500ms ease;
+}
+
+.hub-estaciones .estacion:hover .imagen {
+  transform: scale(1.05);
+}
+
+.hub-estaciones .velo {
+  background: linear-gradient(to top, rgba(11, 25, 44, 0.9), rgba(11, 25, 44, 0.3) 50%, transparent);
+}

@@ -1,0 +1,71 @@
+<section class="vista-consola w-full px-margin-mobile md:px-margin py-space-xl flex flex-col gap-space-xl max-w-7xl mx-auto">
+  <!-- Encabezado y acciones -->
+  <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg">
+    <div class="max-w-3xl flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-1 rounded bg-primary text-on-primary font-telemetry-code text-label-sm uppercase tracking-widest font-bold">Consola de auditoría</span>
+        <span class="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container font-telemetry-code text-label-sm font-semibold" id="estado-captura">Captura activa</span>
+      </div>
+      <h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Intercambio HTTP / JSON entre servicios</h1>
+      <p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+        Cada llamada que hace el cliente a los servicios S1 (:5001), S2 (:5002), S3 (:5003), S4 (:5004) y S5 (:5005) aparece aquí con su petición, su respuesta y su tiempo.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-space-sm bg-surface-container-lowest p-2 rounded-xl shadow-sm">
+      <div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg font-telemetry-code text-telemetry-code text-on-surface">
+        <span>Latencia promedio:</span>
+        <span class="font-bold text-secondary" id="latencia-promedio">—</span>
+      </div>
+      <button class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container-high text-on-surface hover:bg-surface-variant font-label-md text-label-md transition-all active:scale-95" id="boton-copiar" type="button">
+        <span class="material-symbols-outlined text-[18px]">content_copy</span>
+        <span>Copiar JSON</span>
+      </button>
+      <button class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-on-primary hover:bg-surface-tint font-label-md text-label-md transition-all active:scale-95" id="boton-limpiar" type="button">
+        <span class="material-symbols-outlined text-[18px]">cleaning_services</span>
+        <span>Limpiar consola</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Malla de servicios: sondeo real GET /openapi.json -->
+  <div class="flex flex-col gap-space-sm">
+    <div class="flex items-center justify-between">
+      <span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-bold flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[16px] text-secondary">hub</span>
+        Servicios (:5001 - :5005)
+      </span>
+      <button class="font-telemetry-code text-label-sm text-secondary font-semibold hover:underline" id="boton-verificar" type="button">Verificar ahora</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-md" id="malla-servicios"></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="flex flex-wrap items-center gap-1 bg-surface-container-lowest p-2 rounded-xl shadow-sm" id="filtros">
+    <button class="filtro px-3 py-1.5 rounded-lg font-label-md text-label-md bg-primary text-on-primary" data-filtro="todos" type="button">Todos</button>
+    <button class="filtro px-3 py-1.5 rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container" data-filtro="5001" type="button">S1 Usuarios (:5001)</button>
+    <button class="filtro px-3 py-1.5 rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container" data-filtro="5002" type="button">S2 Autenticación (:5002)</button>
+    <button class="filtro px-3 py-1.5 rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container" data-filtro="5003" type="button">S3 Vuelos (:5003)</button>
+    <button class="filtro px-3 py-1.5 rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container" data-filtro="5004" type="button">S4 Reservas (:5004)</button>
+    <button class="filtro px-3 py-1.5 rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container" data-filtro="5005" type="button">S5 Gestión (:5005)</button>
+    <button class="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-secondary font-telemetry-code text-[11px] font-semibold hover:bg-surface-container-high transition-colors" id="boton-pausa" type="button">
+      <span class="w-2 h-2 rounded-full bg-secondary"></span>
+      <span>En vivo</span>
+    </button>
+  </div>
+
+  <!-- Terminal de intercambios -->
+  <div class="w-full rounded-2xl overflow-hidden shadow-xl bg-primary-container text-on-primary flex flex-col">
+    <div class="px-space-md py-3 bg-tertiary-container/90 flex items-center justify-between">
+      <span class="font-telemetry-code text-telemetry-code text-on-primary-container">registro de intercambios HTTP</span>
+      <span class="font-telemetry-code text-telemetry-code text-on-primary-container" id="contador-registros">0 eventos</span>
+    </div>
+    <div class="p-space-lg flex flex-col gap-space-lg max-h-[780px] overflow-y-auto" id="feed"></div>
+  </div>
+
+  <!-- Notificación -->
+  <div class="toast fixed bottom-6 right-6 z-50 bg-primary text-on-primary px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 opacity-0 pointer-events-none" id="toast" role="status">
+    <span class="material-symbols-outlined text-secondary-container text-[20px]" id="toast-icono">check_circle</span>
+    <span class="font-label-md text-label-md" id="toast-texto"></span>
+  </div>
+</section>

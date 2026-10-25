@@ -1,0 +1,25 @@
+/* Panel izquierdo de marca. El resto del layout (la tarjeta en grid) vive en el index global. */
+
+.panel-hero {
+  background: #0b192c;
+  position: relative;
+}
+
+/* Textura de puntos muy sutil sobre el fondo. */
+.panel-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: radial-gradient(#fff 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+
+/* Halos de luz; posicionados con las clases de Tailwind del fragmento. */
+.panel-hero .ambiente {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  pointer-events: none;
+}

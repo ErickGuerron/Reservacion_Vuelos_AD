@@ -1,0 +1,77 @@
+<div class="modal-reserva fixed inset-0 z-50 hidden bg-primary/60 backdrop-blur-sm flex items-center justify-center p-4" id="modal-reserva" role="dialog" aria-modal="true" aria-labelledby="modal-reserva-titulo">
+  <div class="caja bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div class="bg-primary-container text-on-primary p-space-lg flex items-center justify-between">
+      <div class="flex items-center gap-space-sm">
+        <div class="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
+          <span class="material-symbols-outlined text-[20px] text-on-secondary">airplane_ticket</span>
+        </div>
+        <div>
+          <h3 class="font-headline-sm text-headline-sm font-bold leading-tight" id="modal-reserva-titulo">Confirmar reserva de vuelo</h3>
+          <span class="font-telemetry-code text-telemetry-code text-secondary-container">POST /api/reservas · S4 :5004</span>
+        </div>
+      </div>
+      <button class="cerrar w-8 h-8 rounded-full bg-surface-container-high/20 hover:bg-surface-container-high/40 flex items-center justify-center text-on-primary transition-colors" type="button" aria-label="Cerrar">
+        <span class="material-symbols-outlined text-[18px]">close</span>
+      </button>
+    </div>
+
+    <div class="p-space-lg flex flex-col gap-space-md">
+      <div class="p-space-sm bg-surface-container-low rounded-lg flex items-center gap-space-sm">
+        <span class="material-symbols-outlined text-secondary text-[22px]">person</span>
+        <div>
+          <span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Pasajero titular</span>
+          <p class="font-headline-sm text-[16px] font-bold text-on-surface" id="modal-pasajero"></p>
+        </div>
+      </div>
+
+      <div class="bg-surface-container-low rounded-lg p-space-md flex flex-col gap-space-sm">
+        <div class="flex items-center justify-between font-label-md text-label-md text-on-surface-variant">
+          <span>Ruta</span>
+          <span class="font-bold text-on-surface font-telemetry-code" id="modal-ruta"></span>
+        </div>
+        <div class="flex items-center justify-between font-label-md text-label-md text-on-surface-variant">
+          <span>Fecha</span>
+          <span class="font-telemetry-code text-on-surface" id="modal-fecha"></span>
+        </div>
+        <div class="flex items-center justify-between font-label-md text-label-md text-on-surface-variant">
+          <span>Asientos disponibles</span>
+          <span class="font-telemetry-code font-bold text-on-surface" id="modal-asientos"></span>
+        </div>
+        <div class="h-px bg-surface-variant my-1"></div>
+        <div class="flex items-center justify-between">
+          <span class="font-body-md text-body-md font-semibold text-on-surface">Precio por pasajero</span>
+          <span class="font-headline-md text-headline-md font-extrabold text-on-surface" id="modal-precio"></span>
+        </div>
+      </div>
+
+      <div class="estado-envio hidden p-space-sm rounded-lg bg-surface-container-high flex items-center gap-space-sm">
+        <div class="spinner w-4 h-4 rounded-full border-2 border-secondary border-t-transparent"></div>
+        <span class="font-telemetry-code text-telemetry-code text-on-surface">Enviando reserva al servicio S4...</span>
+      </div>
+
+      <div class="resultado-ok hidden p-space-md rounded-lg bg-surface-container text-on-surface flex items-start gap-space-sm">
+        <span class="material-symbols-outlined text-secondary text-[24px]">verified</span>
+        <div>
+          <h4 class="font-label-lg text-label-lg font-bold">¡Reserva confirmada!</h4>
+          <p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            Número de reserva <span class="font-telemetry-code font-bold text-on-surface" id="modal-reserva-id"></span>, estado <span class="font-telemetry-code font-bold text-on-surface" id="modal-estado"></span>.
+          </p>
+        </div>
+      </div>
+
+      <div class="resultado-error hidden p-space-md rounded-lg bg-rose-50 text-rose-800 border border-rose-200 text-sm">
+        <span class="texto-error"></span>
+      </div>
+    </div>
+
+    <div class="p-space-lg bg-surface-container-low flex items-center justify-end gap-space-sm">
+      <button class="cerrar px-space-md py-2.5 rounded-lg bg-surface-container-highest hover:bg-surface-variant font-label-lg text-label-lg text-on-surface transition-colors" type="button">
+        Cerrar
+      </button>
+      <button class="confirmar px-space-lg py-2.5 rounded-lg bg-primary hover:bg-on-surface-variant text-on-primary font-label-lg text-label-lg font-bold shadow-md flex items-center gap-2 transition-all" type="button">
+        <span class="material-symbols-outlined text-[18px]">check_circle</span>
+        <span>Confirmar reserva</span>
+      </button>
+    </div>
+  </div>
+</div>

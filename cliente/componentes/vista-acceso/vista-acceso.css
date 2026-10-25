@@ -1,0 +1,15 @@
+/* Tarjeta de acceso: en pantallas pequeñas el panel de marca se oculta para dar espacio al formulario. */
+
+.vista-acceso #acceso-hero {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .vista-acceso #acceso-hero {
+    display: block;
+  }
+}
+
+.vista-acceso #acceso-hero > aside {
+  height: 100%;
+}
