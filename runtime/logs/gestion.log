@@ -1,0 +1,99 @@
+INFO:     Started server process [166928]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56083 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64793 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64793 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57097 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57097 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59121 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59121 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59121 - "DELETE /api/reservas/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59121 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58745 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60631 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60631 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54219 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54219 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64338 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64338 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49631 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61066 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62760 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65520 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65520 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     Started server process [74788]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59424 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59430 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63675 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [139908]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52391 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [156292]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51422 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [172236]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55554 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64269 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64269 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49449 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     Started server process [170188]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65505 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [118688]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52314 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60611 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60611 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55784 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62830 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [167644]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53766 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [167624]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65376 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [170824]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:63439 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [146780]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:60460 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53920 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53920 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     Started server process [163360]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5005 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55044 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53033 - "GET /api/reservas HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:60795 - "GET /api/reservas HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:61523 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61523 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50775 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50780 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57862 - "GET /api/reservas HTTP/1.1" 200 OK

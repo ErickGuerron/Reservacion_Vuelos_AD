@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from autenticacion.main import app as auth_app
 from usuarios.main import app as usuarios_app
+from vuelos.main import app as vuelos_app
 
 FRONTEND = "http://localhost:8080"
 
@@ -30,3 +31,12 @@ def test_autenticacion_permite_el_origen_del_frontend():
 def test_origen_no_permitido_no_recibe_cabecera_cors():
     response = _preflight(auth_app, "/api/auth/login", "http://sitio-ajeno.example")
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_flutter_web_en_puerto_aleatorio_puede_llamar_a_los_servicios():
+    # `flutter run -d chrome` elige un puerto distinto en cada ejecución.
+    origen = "http://localhost:54321"
+    for app, ruta in [(usuarios_app, "/api/usuarios"), (auth_app, "/api/auth/login"), (vuelos_app, "/api/admin/vuelos")]:
+        response = _preflight(app, ruta, origen)
+        assert response.headers["access-control-allow-origin"] == origen
+        assert "authorization" in response.headers["access-control-allow-headers"].lower()

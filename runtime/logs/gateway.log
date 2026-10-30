@@ -1,0 +1,246 @@
+INFO:     Started server process [156204]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53656 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53663 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50741 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50750 - "POST /api/reservas HTTP/1.1" 503 Service Unavailable
+INFO:     127.0.0.1:50750 - "POST /api/reservas HTTP/1.1" 401 Unauthorized
+INFO:     Started server process [161048]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54874 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53253 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52716 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51598 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56411 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56411 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:55942 - "POST /api/auth/login HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:51570 - "OPTIONS /api/usuarios HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51570 - "POST /api/usuarios HTTP/1.1" 201 Created
+INFO:     127.0.0.1:51292 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64791 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63606 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55801 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59111 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "OPTIONS /api/reservas/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "DELETE /api/reservas/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59111 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58744 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58744 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54499 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60625 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60625 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60625 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60625 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60625 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54817 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52373 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61619 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62549 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49590 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:49590 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:49590 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:49590 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61065 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61065 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62754 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62754 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62754 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62754 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61516 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64138 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62834 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65514 - "GET /api/vuelos/1/asientos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53346 - "OPTIONS /api/reservas/lote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53346 - "POST /api/reservas/lote HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50981 - "POST /api/reservas/lote HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54636 - "POST /api/reservas/lote HTTP/1.1" 404 Not Found
+INFO:     Started server process [172568]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52409 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59425 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63670 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [150996]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50953 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [103176]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54336 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [165972]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55501 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51276 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57036 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49441 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     Started server process [155340]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65454 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [137064]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52254 - "GET /openapi.json HTTP/1.1" 200 OK
+Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+Traceback (most recent call last):
+  File "C:\Users\erick\miniconda3\Lib\asyncio\events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\erick\miniconda3\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+INFO:     127.0.0.1:59583 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63269 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63269 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63269 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63269 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60608 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60608 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53649 - "OPTIONS /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51627 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53649 - "GET /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55783 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55783 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55783 - "GET /api/vuelos/1/asientos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64432 - "OPTIONS /api/reservas/1/asiento HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:64432 - "OPTIONS /api/reservas/1/asiento HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:62825 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [173420]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49240 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59369 - "OPTIONS /api/reservas/1/asiento HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:60103 - "OPTIONS /api/reservas/1/asiento HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:58993 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62242 - "GET /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     Started server process [125008]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64821 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [175756]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55194 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [166636]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50788 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57963 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "OPTIONS /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "GET /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     Started server process [174672]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54983 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55435 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "OPTIONS /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "OPTIONS /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /api/reservas HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:52512 - "OPTIONS /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52512 - "GET /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58588 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60782 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60782 - "GET /api/reservas HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:60782 - "GET /api/admin/vuelos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61521 - "GET /api/vuelos/1/asientos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59650 - "OPTIONS /api/reservas/lote HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59650 - "POST /api/reservas/lote HTTP/1.1" 201 Created
+INFO:     127.0.0.1:59650 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50764 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50764 - "GET /api/vuelos/1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50764 - "GET /api/vuelos/1/asientos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57850 - "GET /api/vuelos/1/asientos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57850 - "OPTIONS /api/reservas/5/asiento HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57850 - "PUT /api/reservas/5/asiento HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57850 - "GET /api/reservas HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57850 - "GET /api/vuelos/1/asientos HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50081 - "GET /api/vuelos?origen=UIO&destino=GYE HTTP/1.1" 200 OK

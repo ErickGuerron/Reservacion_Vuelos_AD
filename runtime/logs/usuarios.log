@@ -1,0 +1,65 @@
+INFO:     Started server process [143208]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54883 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51293 - "POST /api/usuarios HTTP/1.1" 201 Created
+INFO:     127.0.0.1:61517 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [172608]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64911 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59426 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63671 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [158400]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65291 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [116396]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51376 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [147504]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55512 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [169604]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65466 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [165736]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52264 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62826 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [92612]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49250 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [165052]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64843 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [174672]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55206 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [175448]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50799 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [92612]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55000 - "GET /openapi.json HTTP/1.1" 200 OK

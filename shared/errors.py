@@ -23,6 +23,7 @@ class ErrorOut(BaseModel):
 _DESCRIPCIONES = {
     400: "Datos inválidos (DATOS_INVALIDOS)",
     401: "Token o credenciales no válidos",
+    403: "Sin permiso para esta operación (PERMISO_DENEGADO)",
     404: "Recurso no encontrado",
     409: "Conflicto con el estado actual",
     503: "Servicio dependiente no disponible",
@@ -86,6 +87,9 @@ def _describe_field_error(error: dict) -> dict:
         mensaje = f"{campo} debe ser un número entero."
     elif tipo.startswith("date"):
         mensaje = f"{campo} debe ser una fecha con formato AAAA-MM-DD."
+    elif tipo == "value_error":
+        # Message raised by a field validator (for example the bcrypt 72-byte limit).
+        mensaje = error["msg"].removeprefix("Value error, ")
     else:
         mensaje = f"{campo} no es válido."
 

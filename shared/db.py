@@ -87,6 +87,29 @@ def session_factory(name: str):
     return engine, sessionmaker(bind=engine, autoflush=False)
 
 
+def add_column_if_missing(engine, table: str, column: str, ddl: str) -> None:
+    """Add a column to an existing table if it is missing (create_all never alters tables).
+
+    `ALTER TABLE t ADD <column> <ddl>` is valid on both SQLite and SQL Server. Two services
+    may run this at the same time on one database; the loser re-checks and stops if the
+    column already exists.
+    """
+    from sqlalchemy import inspect, text
+    from sqlalchemy.exc import DatabaseError
+
+    def _exists() -> bool:
+        return any(c["name"] == column for c in inspect(engine).get_columns(table))
+
+    if _exists():
+        return
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(f"ALTER TABLE {table} ADD {column} {ddl}"))
+    except DatabaseError:
+        if not _exists():
+            raise
+
+
 def create_tables(engine, base, tables) -> None:
     """Create the service's tables if missing.
 

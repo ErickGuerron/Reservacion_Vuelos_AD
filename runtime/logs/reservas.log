@@ -1,0 +1,74 @@
+INFO:     Started server process [166492]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54922 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59112 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:49591 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:49591 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:49591 - "POST /api/reservas HTTP/1.1" 201 Created
+INFO:     127.0.0.1:61520 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57723 - "POST /api/reservas/lote HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50982 - "POST /api/reservas/lote HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54637 - "POST /api/reservas/lote HTTP/1.1" 404 Not Found
+INFO:     Started server process [170648]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64587 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59429 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56186 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63674 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [170696]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64482 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [144128]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51411 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [147992]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55542 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [174324]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65495 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [152256]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52304 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62829 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [167512]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53754 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [126860]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65366 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [173436]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:63429 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [162168]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50828 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Started server process [57864]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:5004 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55034 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50765 - "POST /api/reservas/lote HTTP/1.1" 201 Created
+INFO:     127.0.0.1:57859 - "PUT /api/reservas/5/asiento HTTP/1.1" 200 OK

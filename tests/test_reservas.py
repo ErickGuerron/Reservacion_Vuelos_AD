@@ -11,8 +11,18 @@ client = TestClient(app)
 AUTH = {"Authorization": f"Bearer {create_token('viajero@correo.com')['token']}"}
 
 
+@pytest.fixture(autouse=True)
+def _asiento_en_vuelos(monkeypatch):
+    """Seat holds are answered locally; the real S3 round trip is covered in test_asientos.py."""
+    monkeypatch.setattr(
+        reservas_main,
+        "reservar_lote_s3",
+        lambda vuelo_id, items: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
+    )
+
+
 def test_reserva_sin_token_devuelve_401():
-    response = client.post("/api/reservas", json={"vueloId": 1, "pasajero": "Ana"})
+    response = client.post("/api/reservas", json={"vueloId": 1, "pasajero": "Ana Torres"})
     assert response.status_code == 401
     assert response.json()["codigo"] == "TOKEN_REQUERIDO"
 
@@ -23,7 +33,7 @@ def test_reserva_exitosa_con_vuelo_disponible(monkeypatch):
         "obtener_vuelo",
         lambda vuelo_id: {"id": vuelo_id, "asientosDisponibles": 5},
     )
-    response = client.post("/api/reservas", json={"vueloId": 7, "pasajero": "Ana"}, headers=AUTH)
+    response = client.post("/api/reservas", json={"vueloId": 7, "pasajero": "Ana Torres"}, headers=AUTH)
     assert response.status_code == 201
     body = response.json()
     assert body["vueloId"] == 7
@@ -36,7 +46,7 @@ def test_reserva_sin_asientos_devuelve_409(monkeypatch):
         "obtener_vuelo",
         lambda vuelo_id: {"id": vuelo_id, "asientosDisponibles": 0},
     )
-    response = client.post("/api/reservas", json={"vueloId": 8, "pasajero": "Ana"}, headers=AUTH)
+    response = client.post("/api/reservas", json={"vueloId": 8, "pasajero": "Ana Torres"}, headers=AUTH)
     assert response.status_code == 409
     assert response.json()["codigo"] == "SIN_ASIENTOS"
 
@@ -46,7 +56,7 @@ def test_vuelo_inexistente_devuelve_404_al_reservar(monkeypatch):
         raise ApiError(404, "VUELO_NO_EXISTE", "The flight does not exist.")
 
     monkeypatch.setattr(reservas_main, "obtener_vuelo", _no_existe)
-    response = client.post("/api/reservas", json={"vueloId": 999, "pasajero": "Ana"}, headers=AUTH)
+    response = client.post("/api/reservas", json={"vueloId": 999, "pasajero": "Ana Torres"}, headers=AUTH)
     assert response.status_code == 404
     assert response.json()["codigo"] == "VUELO_NO_EXISTE"
 

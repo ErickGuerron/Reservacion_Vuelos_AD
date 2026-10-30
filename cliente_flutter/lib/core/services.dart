@@ -1,0 +1,250 @@
+import 'api_client.dart';
+import 'api_config.dart';
+import 'models.dart';
+
+// Servicios REST, uno por microservicio. Misma forma de llamada que los componentes web.
+
+class AuthService {
+  // POST /api/auth/login (S2). Devuelve el token o lanza ApiException con el mensaje del servicio.
+  static Future<String> login(String email, String password) async {
+    final respuesta = await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.autenticacion}/api/auth/login'),
+      cuerpo: {'email': email, 'password': password},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo iniciar sesión.');
+    }
+    return (respuesta.cuerpo as Map)['token'] as String;
+  }
+}
+
+class UsuariosService {
+  // POST /api/usuarios (S1). Devuelve el correo registrado.
+  static Future<String> registrar({required String nombre, required String email, required String password}) async {
+    final respuesta = await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.usuarios}/api/usuarios'),
+      cuerpo: {'nombre': nombre, 'email': email, 'password': password},
+    );
+    if (respuesta.status != 201) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo completar el registro.', status: respuesta.status);
+    }
+    return (respuesta.cuerpo as Map)['email'] as String;
+  }
+}
+
+class VuelosService {
+  // GET /api/vuelos (S3) con los filtros de la búsqueda.
+  static Future<List<Vuelo>> buscar({required String origen, String? destino, String? fecha}) async {
+    final parametros = <String, String>{'origen': origen};
+    if (destino != null) parametros['destino'] = destino;
+    if (fecha != null && fecha.isNotEmpty) parametros['fecha'] = fecha;
+
+    final respuesta = await ApiClient.enviar(
+      'GET',
+      Uri.parse('${ApiConfig.vuelos}/api/vuelos').replace(queryParameters: parametros),
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo consultar los vuelos.');
+    }
+    return (respuesta.cuerpo as List).map((v) => Vuelo.fromJson(v as Map<String, dynamic>)).toList();
+  }
+
+  // GET /api/vuelos/{id}/asientos (S3): disponibilidad real de cada asiento.
+  static Future<List<AsientoRemoto>> mapa(int vueloId) async {
+    final respuesta = await ApiClient.enviar('GET', Uri.parse('${ApiConfig.vuelos}/api/vuelos/$vueloId/asientos'));
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo cargar el mapa de asientos.', status: respuesta.status);
+    }
+    final asientos = (respuesta.cuerpo as Map)['asientos'] as List;
+    return asientos.map((a) => AsientoRemoto.fromJson(a as Map<String, dynamic>)).toList();
+  }
+
+  // GET /api/vuelos/{id} (S3). Devuelve null si el vuelo ya no existe.
+  static Future<Vuelo?> obtener(int id) async {
+    try {
+      final respuesta = await ApiClient.enviar('GET', Uri.parse('${ApiConfig.vuelos}/api/vuelos/$id'));
+      if (!respuesta.ok) return null;
+      return Vuelo.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+class ReservasService {
+  // POST /api/reservas (S4). Devuelve la reserva creada.
+  // POST /api/reservas/lote (S4): reserva todos los asientos o ninguno.
+  // Si alguno ya está ocupado, el servidor responde 409 y no guarda nada; el status viene en la excepción.
+  static Future<List<Reserva>> crearLote({
+    required int vueloId,
+    required List<({String pasajero, String asiento})> reservas,
+    required String token,
+  }) async {
+    final respuesta = await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.reservas}/api/reservas/lote'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {
+        'vueloId': vueloId,
+        'reservas': [for (final r in reservas) {'pasajero': r.pasajero, 'asiento': r.asiento}],
+      },
+    );
+    if (respuesta.status != 201) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo crear la reserva.', status: respuesta.status);
+    }
+    return (respuesta.cuerpo as List).map((r) => Reserva.fromJson(r as Map<String, dynamic>)).toList();
+  }
+
+  // GET /api/reservas (S5).
+  static Future<List<Reserva>> listar({required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'GET',
+      Uri.parse('${ApiConfig.gestion}/api/reservas'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+    );
+    if (respuesta.status == 401) throw SesionExpirada();
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudieron cargar las reservas.');
+    }
+    return (respuesta.cuerpo as List).map((r) => Reserva.fromJson(r as Map<String, dynamic>)).toList();
+  }
+
+  // DELETE /api/reservas/{id} (S5).
+  static Future<void> cancelar({required int id, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'DELETE',
+      Uri.parse('${ApiConfig.gestion}/api/reservas/$id'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo cancelar la reserva.');
+    }
+  }
+
+  // PUT /api/reservas/{id}/asiento (S4): mueve la reserva propia a otro asiento libre.
+  static Future<String> cambiarAsiento({required int id, required String asiento, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'PUT',
+      Uri.parse('${ApiConfig.reservas}/api/reservas/$id/asiento'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {'asiento': asiento},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo cambiar el asiento.', status: respuesta.status);
+    }
+    return (respuesta.cuerpo as Map)['asiento'] as String;
+  }
+}
+
+// Alta de vuelos (solo administradores). El servidor valida el total: 18 a 180 y múltiplo de 6.
+class AdminService {
+  static Future<Vuelo> crearVuelo({
+    // false (por defecto) crea el vuelo como borrador: no se muestra a los clientes hasta publicarlo.
+    bool activo = false,
+    required String origen,
+    required String destino,
+    required String fecha,
+    required double precio,
+    required int totalAsientos,
+    required String token,
+  }) async {
+    final respuesta = await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.vuelos}/api/admin/vuelos'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {
+        'origen': origen,
+        'destino': destino,
+        'fecha': fecha,
+        'precio': precio,
+        'totalAsientos': totalAsientos,
+        'activo': activo,
+      },
+    );
+    if (respuesta.status != 201) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo crear el vuelo.', status: respuesta.status);
+    }
+    return Vuelo.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+  }
+}
+
+// Gestión de vuelos por el administrador: listar todos, editar los que no tienen reservas, activar o desactivar.
+class GestionVuelosService {
+  // GET /api/admin/vuelos (S3): todos los vuelos, también los inactivos.
+  static Future<List<VueloAdmin>> listar({required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'GET',
+      Uri.parse('${ApiConfig.vuelos}/api/admin/vuelos'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudieron cargar los vuelos.', status: respuesta.status);
+    }
+    return (respuesta.cuerpo as List).map((v) => VueloAdmin.fromJson(v as Map<String, dynamic>)).toList();
+  }
+
+  // PUT /api/admin/vuelos/{id} (S3): solo si el vuelo no tiene reservas (409 VUELO_CON_RESERVAS si las tiene).
+  static Future<VueloAdmin> editar({
+    required int id,
+    required String origen,
+    required String destino,
+    required String fecha,
+    required double precio,
+    required int totalAsientos,
+    required String token,
+  }) async {
+    final respuesta = await ApiClient.enviar(
+      'PUT',
+      Uri.parse('${ApiConfig.vuelos}/api/admin/vuelos/$id'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {
+        'origen': origen,
+        'destino': destino,
+        'fecha': fecha,
+        'precio': precio,
+        'totalAsientos': totalAsientos,
+      },
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo editar el vuelo.', status: respuesta.status);
+    }
+    return VueloAdmin.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+  }
+
+  // PATCH /api/admin/vuelos/{id}/estado (S3): activa o desactiva el vuelo para los clientes.
+  static Future<VueloAdmin> cambiarEstado({required int id, required bool activo, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'PATCH',
+      Uri.parse('${ApiConfig.vuelos}/api/admin/vuelos/$id/estado'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {'activo': activo},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo cambiar el estado del vuelo.', status: respuesta.status);
+    }
+    return VueloAdmin.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+  }
+}
+
+// Asiento tal como lo entrega S3 en GET /api/vuelos/{id}/asientos.
+class AsientoRemoto {
+  const AsientoRemoto({required this.codigo, required this.fila, required this.columna, required this.ocupado});
+
+  final String codigo;
+  final int fila;
+  final String columna;
+  final bool ocupado;
+
+  factory AsientoRemoto.fromJson(Map<String, dynamic> json) => AsientoRemoto(
+        codigo: json['codigo'] as String,
+        fila: (json['fila'] as num).toInt(),
+        columna: json['columna'] as String,
+        ocupado: json['ocupado'] as bool,
+      );
+}
+
+class SesionExpirada extends ApiException {
+  SesionExpirada() : super('Su sesión expiró. Inicie sesión de nuevo.');
+}

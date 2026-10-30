@@ -1,5 +1,7 @@
+import pytest
 from fastapi.testclient import TestClient
 
+from gestion import main as gestion_main
 from gestion.main import app as gestion_app
 from reservas import main as reservas_main
 from reservas.main import app as reservas_app
@@ -7,6 +9,17 @@ from shared.security import create_token
 
 reservas = TestClient(reservas_app)
 gestion = TestClient(gestion_app)
+
+
+@pytest.fixture(autouse=True)
+def _asientos_en_vuelos(monkeypatch):
+    """Seat calls to S3 are answered locally; the real round trip is covered in test_asientos.py."""
+    monkeypatch.setattr(
+        reservas_main,
+        "reservar_lote_s3",
+        lambda vuelo_id, items: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
+    )
+    monkeypatch.setattr(gestion_main, "liberar_asientos", lambda reserva_id: None)
 
 
 def _auth(email: str) -> dict:
@@ -19,7 +32,7 @@ def _reservar(email: str, monkeypatch) -> int:
         "obtener_vuelo",
         lambda vuelo_id: {"id": vuelo_id, "asientosDisponibles": 3},
     )
-    response = reservas.post("/api/reservas", json={"vueloId": 1, "pasajero": "Pasajero"}, headers=_auth(email))
+    response = reservas.post("/api/reservas", json={"vueloId": 1, "pasajero": "Pasajero Ruiz"}, headers=_auth(email))
     assert response.status_code == 201
     return response.json()["id"]
 
