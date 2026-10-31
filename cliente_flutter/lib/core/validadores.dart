@@ -70,6 +70,26 @@ String? validarFecha(String? valor) {
   return null;
 }
 
+// Un vuelo nuevo o editado no puede salir hoy ni en el pasado: la primera fecha válida es mañana.
+String? validarFechaVuelo(String? valor) {
+  final error = validarFecha(valor);
+  if (error != null) return error;
+  final fecha = DateTime.parse((valor ?? '').trim());
+  final hoy = DateTime.now();
+  final manana = DateTime(hoy.year, hoy.month, hoy.day + 1);
+  if (fecha.isBefore(manana)) return 'El vuelo debe programarse desde mañana en adelante.';
+  return null;
+}
+
+// Hora de salida en formato HH:MM de 24 horas.
+final _horaRe = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+
+String? validarHora(String? valor) {
+  final v = (valor ?? '').trim();
+  if (!_horaRe.hasMatch(v)) return 'Use el formato HH:MM (24 horas).';
+  return null;
+}
+
 // ----- Formatos de entrada: filtran lo que se puede escribir y conservan la posición del cursor -----
 
 // Recorre el texto nuevo y deja solo los caracteres permitidos. El cursor se recalcula contando

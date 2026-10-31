@@ -156,6 +156,7 @@ class _MisReservasViewState extends State<MisReservasView> {
         'origen': v.origen,
         'destino': v.destino,
         'fecha': v.fecha,
+        'hora': v.hora,
         'precio': v.precio,
         'asientosDisponibles': v.asientosDisponibles,
       };
@@ -648,6 +649,7 @@ class _DatosGrid extends StatelessWidget {
           _Dato('Pasajero', reserva.pasajero),
           _Dato('Asiento', reserva.asiento ?? 'Sin asiento'),
           _Dato('Fecha', vuelo?.fecha ?? '—'),
+          _Dato('Hora de salida', vuelo?.hora ?? '—'),
           _Dato('Precio', vuelo == null ? '—' : '\$${vuelo!.precio.toStringAsFixed(2)} USD'),
           _Dato('Asientos disponibles', vuelo == null ? '—' : '${vuelo!.asientosDisponibles}'),
         ],
@@ -686,7 +688,7 @@ class _Resumen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final monto = confirmadas.fold<double>(0, (suma, r) => suma + (vuelos[r.vueloId]?.precio ?? 0));
-    final proximos = confirmadas.map((r) => vuelos[r.vueloId]).whereType<Vuelo>().toList()..sort((a, b) => a.fecha.compareTo(b.fecha));
+    final proximos = confirmadas.map((r) => vuelos[r.vueloId]).whereType<Vuelo>().toList()..sort((a, b) => '${a.fecha} ${a.hora}'.compareTo('${b.fecha} ${b.hora}'));
     final proximo = proximos.isEmpty ? null : proximos.first;
 
     return Wrap(
@@ -704,7 +706,7 @@ class _Resumen extends StatelessWidget {
         ),
         _TarjetaResumen(
           titulo: 'Próxima salida',
-          valor: proximo?.fecha ?? '—',
+          valor: proximo == null ? '—' : '${proximo.fecha} · ${proximo.hora}',
           pie: proximo == null ? '' : 'Vuelo #${proximo.id}: ${proximo.origen} → ${proximo.destino}',
         ),
       ],

@@ -115,6 +115,7 @@ class _VuelosViewState extends State<VuelosView> {
             origen: v.origen,
             destino: v.destino,
             fecha: v.fecha,
+            hora: v.hora,
             precio: v.precio,
             asientosDisponibles: v.asientosDisponibles,
             activo: v.activo,
@@ -731,7 +732,7 @@ class _TarjetaBoleto extends StatelessWidget {
           Row(
             children: [
               Expanded(child: _Ciudad(codigo: vuelo.origen, alineacion: CrossAxisAlignment.start)),
-              Expanded(child: _Trayecto(fecha: vuelo.fecha)),
+              Expanded(child: _Trayecto(fecha: vuelo.fecha, hora: vuelo.hora)),
               Expanded(child: _Ciudad(codigo: vuelo.destino, alineacion: CrossAxisAlignment.end)),
             ],
           ),
@@ -768,14 +769,14 @@ class _TarjetaBoleto extends StatelessWidget {
               width: double.infinity,
               height: 44,
               child: FilledButton(
-                onPressed: agotado || !vuelo.activo ? null : onReservar,
+                onPressed: agotado || !vuelo.activo || vuelo.ventaCerrada ? null : onReservar,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 disabledBackgroundColor: AppColors.surfaceContainerHighest,
                 disabledForegroundColor: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              child: Text(agotado ? 'Agotado' : 'Reservar vuelo', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
+              child: Text(agotado ? 'Agotado' : (vuelo.ventaCerrada ? 'Venta cerrada' : 'Reservar vuelo'), style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
             ),
           ),
         ],
@@ -842,8 +843,9 @@ class _Ciudad extends StatelessWidget {
 
 // Trayecto directo: línea punteada con dos extremos y un avión centrado.
 class _Trayecto extends StatelessWidget {
-  const _Trayecto({required this.fecha});
+  const _Trayecto({required this.fecha, required this.hora});
   final String fecha;
+  final String hora;
 
   @override
   Widget build(BuildContext context) {
@@ -880,7 +882,7 @@ class _Trayecto extends StatelessWidget {
             ],
           ),
         ),
-        Text('Salida $fecha', style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant).copyWith(fontWeight: FontWeight.w600)),
+        Text('Salida $fecha · $hora', style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant).copyWith(fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -906,7 +908,7 @@ class _TablaVuelos extends StatelessWidget {
           columns: [
             DataColumn(label: Text('ID', style: encabezado)),
             DataColumn(label: Text('Ruta', style: encabezado)),
-            DataColumn(label: Text('Fecha', style: encabezado)),
+            DataColumn(label: Text('Fecha y hora', style: encabezado)),
             DataColumn(label: Text('Precio (USD)', style: encabezado)),
             DataColumn(label: Text('Asientos', style: encabezado)),
             DataColumn(label: Text('Acción', style: encabezado)),
@@ -923,7 +925,7 @@ class _TablaVuelos extends StatelessWidget {
                     DataRow(cells: [
                       DataCell(Text('#${v.id}', style: AppTheme.telemetry(color: AppColors.onSurface, weight: FontWeight.w700))),
                       DataCell(Text('${v.origen} → ${v.destino}', style: AppTheme.bodySm().copyWith(fontWeight: FontWeight.w700))),
-                      DataCell(Text(v.fecha, style: AppTheme.telemetry(color: AppColors.onSurface))),
+                      DataCell(Text('${v.fecha} · ${v.hora}', style: AppTheme.telemetry(color: AppColors.onSurface))),
                       DataCell(Text('\$${v.precio.toStringAsFixed(2)}', style: AppTheme.bodySm().copyWith(fontWeight: FontWeight.w700))),
                       DataCell(Text('${v.asientosDisponibles} libres', style: AppTheme.bodySm())),
                       DataCell(
@@ -932,9 +934,9 @@ class _TablaVuelos extends StatelessWidget {
                           children: [
                             if (Permisos(session.rol).puedeReservar)
                               FilledButton(
-                                onPressed: v.agotado || !v.activo ? null : () => onReservar(v),
+                                                                 onPressed: v.agotado || !v.activo || v.ventaCerrada ? null : () => onReservar(v),
                               style: FilledButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                              child: Text(v.agotado ? 'Sin cupo' : 'Reservar', style: AppTheme.labelMd(color: AppColors.onPrimary)),
+                              child: Text(v.agotado ? 'Sin cupo' : (v.ventaCerrada ? 'Venta cerrada' : 'Reservar'),  style: AppTheme.labelMd(color: AppColors.onPrimary)),
                             ),
                             if (acciones?.call(v) case final accion?) ...[const SizedBox(width: 8), accion],
                           ],

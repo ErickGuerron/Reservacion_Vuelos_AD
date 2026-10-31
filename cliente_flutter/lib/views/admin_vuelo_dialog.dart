@@ -32,6 +32,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
   late String _origen;
   late String _destino;
   late final TextEditingController _fecha;
+  late final TextEditingController _hora;
   late final TextEditingController _precio;
   late int _total;
   bool _enviando = false;
@@ -49,6 +50,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
     _origen = aeropuertos.containsKey(v?.origen) ? v!.origen : aeropuertos.keys.first;
     _destino = aeropuertos.containsKey(v?.destino) ? v!.destino : aeropuertos.keys.last;
     _fecha = TextEditingController(text: v?.fecha ?? '');
+    _hora = TextEditingController(text: v?.hora ?? '08:00');
     _precio = TextEditingController(text: v == null ? '' : v.precio.toStringAsFixed(2));
     // Un vuelo puede tener un total que ya no es válido (por ejemplo 0 asientos): se parte de uno válido.
     final total = v?.totalAsientos;
@@ -58,8 +60,53 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
   @override
   void dispose() {
     _fecha.dispose();
+    _hora.dispose();
     _precio.dispose();
     super.dispose();
+  }
+
+  // Primer día en que se puede programar un vuelo: mañana.
+  DateTime get _primerDiaPermitido {
+    final hoy = DateTime.now();
+    return DateTime(hoy.year, hoy.month, hoy.day + 1);
+  }
+
+  static String _formatoFecha(DateTime f) =>
+      '${f.year.toString().padLeft(4, '0')}-${f.month.toString().padLeft(2, '0')}-${f.day.toString().padLeft(2, '0')}';
+
+  Future<void> _elegirFecha() async {
+    final primero = _primerDiaPermitido;
+    // Un vuelo ya guardado con fecha anterior a mañana no puede ser la fecha inicial del calendario.
+    final actual = DateTime.tryParse(_fecha.text.trim());
+    final inicial = actual != null && !actual.isBefore(primero) ? actual : primero;
+    final elegida = await showDatePicker(
+      context: context,
+      initialDate: inicial,
+      firstDate: primero,
+      lastDate: DateTime(primero.year + 3, primero.month, primero.day),
+    );
+    if (elegida != null) {
+      setState(() => _fecha.text = _formatoFecha(elegida));
+    }
+  }
+
+  Future<void> _elegirHora() async {
+    final partes = _hora.text.trim().split(':');
+    final actual = validarHora(_hora.text) == null
+        ? TimeOfDay(hour: int.parse(partes[0]), minute: int.parse(partes[1]))
+        : const TimeOfDay(hour: 8, minute: 0);
+    final elegida = await showTimePicker(
+      context: context,
+      initialTime: actual,
+      // Formato de 24 horas: la hora se guarda como HH:MM, sin AM/PM.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+    );
+    if (elegida != null) {
+      setState(() => _hora.text = '${elegida.hour.toString().padLeft(2, '0')}:${elegida.minute.toString().padLeft(2, '0')}');
+    }
   }
 
   Future<void> _guardar() async {
@@ -69,6 +116,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
       _error = null;
     });
     final fecha = _fecha.text.trim();
+    final hora = _hora.text.trim();
     final precio = double.parse(_precio.text.trim());
     try {
       if (_editando) {
@@ -77,6 +125,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
           origen: _origen,
           destino: _destino,
           fecha: fecha,
+          hora: hora,
           precio: precio,
           totalAsientos: _total,
           token: widget.token,
@@ -87,6 +136,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
           origen: _origen,
           destino: _destino,
           fecha: fecha,
+          hora: hora,
           precio: precio,
           totalAsientos: _total,
           token: widget.token,
@@ -123,6 +173,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _origen,
+                        isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Origen'),
                         items: [
                           for (final e in aeropuertos.entries) DropdownMenuItem(value: e.key, child: Text(e.value, overflow: TextOverflow.ellipsis)),
@@ -136,6 +187,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _destino,
+                        isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Destino'),
                         items: [
                           for (final e in aeropuertos.entries) DropdownMenuItem(value: e.key, child: Text(e.value, overflow: TextOverflow.ellipsis)),
@@ -149,12 +201,44 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                TextFormField(
-                  controller: _fecha,
-                  inputFormatters: [FechaFormatter()],
-                  keyboardType: TextInputType.datetime,
-                  decoration: const InputDecoration(labelText: 'Fecha (AAAA-MM-DD)'),
-                  validator: validarFecha,
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _fecha,
+                        readOnly: true,
+                        onTap: _elegirFecha,
+                        decoration: InputDecoration(
+                          labelText: 'Fecha de salida',
+                          hintText: 'AAAA-MM-DD',
+                          suffixIcon: IconButton(
+                            tooltip: 'Elegir fecha',
+                            icon: const Icon(Icons.calendar_today_outlined),
+                            onPressed: _elegirFecha,
+                          ),
+                        ),
+                        validator: validarFechaVuelo,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _hora,
+                        readOnly: true,
+                        onTap: _elegirHora,
+                        decoration: InputDecoration(
+                          labelText: 'Hora de salida',
+                          hintText: 'HH:MM',
+                          suffixIcon: IconButton(
+                            tooltip: 'Elegir hora',
+                            icon: const Icon(Icons.schedule_outlined),
+                            onPressed: _elegirHora,
+                          ),
+                        ),
+                        validator: validarHora,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
