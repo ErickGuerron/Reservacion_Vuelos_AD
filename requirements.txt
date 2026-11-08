@@ -10,3 +10,4 @@ pyodbc
 psycopg[binary]
 pytest
 dotenv
+tzdata

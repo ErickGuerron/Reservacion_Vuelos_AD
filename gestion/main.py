@@ -130,7 +130,7 @@ def factura_lote(lote_id: int, cuenta: Cuenta = Depends(current_cliente_cuenta))
             for r in confirmadas
         ]
         vuelo = obtener_vuelo_para_factura((confirmadas or reservas)[0].vuelo_id)
-        xml = construir_factura_xml(lote_id, cliente, [r.precio for r in confirmadas], date.today(), boletos, vuelo)
+        xml = construir_factura_xml(lote_id, cliente, [r.precio for r in confirmadas], date.today(), boletos, vuelo, correo=cuenta.email)
         return Response(content=xml, media_type="application/xml")
 
 

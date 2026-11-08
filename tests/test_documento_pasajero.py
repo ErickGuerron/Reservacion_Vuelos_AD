@@ -103,6 +103,6 @@ def test_factura_xml_incluye_vuelo_y_boletos_sin_cambiar_los_totales():
     assert "<subtotal>90.00</subtotal>" in xml
     assert '<iva porcentaje="15">13.50</iva>' in xml
     assert "<total>103.50</total>" in xml
-    assert "<vuelo><origen>UIO</origen><destino>GYE</destino><fecha>2026-11-10</fecha><hora>08:30</hora></vuelo>" in xml
+    assert "<origen>UIO</origen><ciudadOrigen>Quito</ciudadOrigen><destino>GYE</destino><ciudadDestino>Guayaquil</ciudadDestino><fecha>2026-11-10</fecha><hora>08:30</hora></vuelo>" in xml
     assert f"<boleto><pasajero>Ana Torres</pasajero><tipoDocumento>cedula</tipoDocumento><documento>{CEDULA_VALIDA}</documento><asiento>1C</asiento><precio>45.00</precio></boleto>" in xml
     assert "<asiento>3A</asiento>" in xml

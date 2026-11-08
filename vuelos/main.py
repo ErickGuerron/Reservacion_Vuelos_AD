@@ -15,6 +15,7 @@ from shared.asientos import MAX_ASIENTOS, MIN_ASIENTOS, generar_asientos_para_to
 from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
+from shared.horarios import FRANJAS, estimar, franja_de, validar_horario
 from shared.models import VUELO_ACTIVO_DDL, VUELO_HORA_DDL, VUELO_HORA_LLEGADA_DDL, AsientoVuelo, Base, Vuelo
 from shared.security import current_admin_email
 from shared.validacion import validar_iata, validar_solo_numero
@@ -200,6 +201,11 @@ def buscar_vuelos(
     origen: str | None = Query(default=None, pattern=r"^[A-Za-z]{3}$"),
     destino: str | None = Query(default=None, pattern=r"^[A-Za-z]{3}$"),
     fecha: date | None = None,
+    franja: str | None = Query(
+        default=None,
+        pattern="^(" + "|".join(FRANJAS) + ")$",
+        description="Franja de la hora de salida: madrugada 00-06, manana 06-12, tarde 12-18, noche 18-24",
+    ),
 ):
     with SessionLocal() as db:
         query = db.query(Vuelo).filter(Vuelo.activo == True)  # noqa: E712 (SQL Server BIT)
@@ -209,7 +215,39 @@ def buscar_vuelos(
             query = query.filter(Vuelo.destino == destino.upper())
         if fecha:
             query = query.filter(Vuelo.fecha == fecha)
-        return [_to_dict(v) for v in query.order_by(Vuelo.id).all()]
+        vuelos = query.order_by(Vuelo.id).all()
+        if franja:
+            vuelos = [v for v in vuelos if franja_de(v.hora) == franja]
+        return [_to_dict(v) for v in vuelos]
+
+
+class EstimacionOut(BaseModel):
+    duracionHabitual: int = Field(description="Minutos de vuelo habituales de la ruta")
+    duracionMinima: int
+    duracionMaxima: int
+    horaLlegadaSugerida: str = Field(description="HH:MM en la hora local del destino")
+    duracionIndicada: int | None = None
+    valida: bool | None = Field(default=None, description="Solo si se envía horaLlegada")
+    mensaje: str | None = None
+
+
+@app.get(
+    "/api/vuelos/estimacion",
+    response_model=EstimacionOut,
+    responses=errores(400, 404),
+    summary="Duración habitual de una ruta y llegada sugerida para una salida",
+)
+def estimar_vuelo(
+    origen: str = Query(pattern=r"^[A-Za-z]{3}$"),
+    destino: str = Query(pattern=r"^[A-Za-z]{3}$"),
+    fecha: date = Query(),
+    hora: str = Query(pattern=HORA_PATTERN),
+    horaLlegada: str | None = Query(default=None, pattern=HORA_PATTERN),
+):
+    estimacion = estimar(origen.upper(), destino.upper(), fecha, hora, horaLlegada)
+    if estimacion is None:
+        raise ApiError(404, "RUTA_SIN_ESTIMACION", "No hay una duración habitual registrada para esa ruta.")
+    return estimacion
 
 
 @app.get(
@@ -263,6 +301,9 @@ def crear_vuelo(datos: VueloAdminIn, _: str = Depends(current_admin_email)):
         raise ApiError(400, "DATOS_INVALIDOS", "El origen y el destino deben ser distintos.")
     if datos.fecha <= date.today():
         raise ApiError(400, "DATOS_INVALIDOS", "El vuelo debe programarse desde mañana en adelante.")
+    motivo = validar_horario(origen, destino, datos.fecha, datos.hora, datos.horaLlegada)
+    if motivo:
+        raise ApiError(400, "DATOS_INVALIDOS", motivo)
     motivo = validar_total_asientos(datos.totalAsientos)
     if motivo:
         raise ApiError(400, "DATOS_INVALIDOS", motivo)
@@ -347,6 +388,9 @@ def editar_vuelo(vuelo_id: int, datos: VueloAdminIn, _: str = Depends(current_ad
         raise ApiError(400, "DATOS_INVALIDOS", "El origen y el destino deben ser distintos.")
     if datos.fecha <= date.today():
         raise ApiError(400, "DATOS_INVALIDOS", "El vuelo debe programarse desde mañana en adelante.")
+    motivo = validar_horario(origen, destino, datos.fecha, datos.hora, datos.horaLlegada)
+    if motivo:
+        raise ApiError(400, "DATOS_INVALIDOS", motivo)
     motivo = validar_total_asientos(datos.totalAsientos)
     if motivo:
         raise ApiError(400, "DATOS_INVALIDOS", motivo)

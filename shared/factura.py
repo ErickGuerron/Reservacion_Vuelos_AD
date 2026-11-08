@@ -12,6 +12,11 @@ IVA_PORCENTAJE = 15
 _IVA = Decimal(IVA_PORCENTAJE) / Decimal(100)
 _CENTAVO = Decimal("0.01")
 
+EMISOR = "AeroVuelo"
+EMISOR_DESCRIPCION = "Sky Booking System"
+# Ciudad de cada aeropuerto conocido; el PDF del cliente muestra "Quito a Guayaquil" con la misma lista.
+CIUDADES = {"UIO": "Quito", "GYE": "Guayaquil", "MAD": "Madrid"}
+
 
 def _dinero(valor: Decimal) -> Decimal:
     return valor.quantize(_CENTAVO, rounding=ROUND_HALF_UP)
@@ -27,10 +32,23 @@ def calcular_totales(precios: list[float | None]) -> dict[str, Decimal]:
 def _vuelo_xml(vuelo: dict | None) -> str:
     if not vuelo:
         return ""
+    datos = dict(vuelo)
+    # Mismos datos que el PDF: número de vuelo y ciudades además de aeropuertos, fecha y horas.
+    datos["ciudadOrigen"] = CIUDADES.get(str(vuelo.get("origen") or "").upper())
+    datos["ciudadDestino"] = CIUDADES.get(str(vuelo.get("destino") or "").upper())
     campos = "".join(
-        f"<{nombre}>{escape(str(vuelo[nombre]))}</{nombre}>"
-        for nombre in ("origen", "destino", "fecha", "hora")
-        if vuelo.get(nombre) is not None
+        f"<{etiqueta}>{escape(str(datos[nombre]))}</{etiqueta}>"
+        for nombre, etiqueta in (
+            ("id", "id"),
+            ("origen", "origen"),
+            ("ciudadOrigen", "ciudadOrigen"),
+            ("destino", "destino"),
+            ("ciudadDestino", "ciudadDestino"),
+            ("fecha", "fecha"),
+            ("hora", "hora"),
+            ("horaLlegada", "horaLlegada"),
+        )
+        if datos.get(nombre) is not None
     )
     return f"<vuelo>{campos}</vuelo>" if campos else ""
 
@@ -59,13 +77,17 @@ def construir_factura_xml(
     emitida: date,
     boletos: list[dict] | None = None,
     vuelo: dict | None = None,
+    correo: str | None = None,
 ) -> str:
     totales = calcular_totales(precios)
     return (
         "<factura>"
         f"<numero>P001-{lote_id:06d}</numero>"
         f"<fecha>{emitida.isoformat()}</fecha>"
+        f"<emisor><nombre>{EMISOR}</nombre><descripcion>{EMISOR_DESCRIPCION}</descripcion></emisor>"
         f"<cliente>{escape(cliente)}</cliente>"
+        f"{f'<correo>{escape(correo)}</correo>' if correo else ''}"
+        f"<reserva>{lote_id}</reserva>"
         f"<pasajeros>{len(precios)}</pasajeros>"
         f"<subtotal>{totales['subtotal']:.2f}</subtotal>"
         f"<iva porcentaje=\"{IVA_PORCENTAJE}\">{totales['iva']:.2f}</iva>"
