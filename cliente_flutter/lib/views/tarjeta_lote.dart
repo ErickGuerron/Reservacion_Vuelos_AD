@@ -89,6 +89,8 @@ class _TarjetaLoteState extends State<TarjetaLote> {
                     children: [
                       _Dato(etiqueta: 'Fecha', valor: vuelo?.fecha ?? '—'),
                       _Dato(etiqueta: 'Salida', valor: vuelo == null ? '—' : '${vuelo.hora} h'),
+                      if (vuelo?.horaLlegada != null)
+                        _Dato(etiqueta: 'Llegada', valor: '${vuelo!.horaLlegada} h${vuelo!.llegaDiaSiguiente ? ' (+1)' : ''}'),
                       _Dato(etiqueta: 'Pasajeros', valor: '${pasajeros.length}'),
                     ],
                   ),

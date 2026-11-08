@@ -1,5 +1,6 @@
 import 'api_client.dart';
 import 'api_config.dart';
+import 'horarios.dart';
 import 'models.dart';
 
 // Servicios REST, uno por microservicio. Misma forma de llamada que los componentes web.
@@ -58,6 +59,33 @@ class VuelosService {
       throw ApiException(respuesta.mensaje ?? 'No se pudo consultar los vuelos.');
     }
     return (respuesta.cuerpo as List).map((v) => Vuelo.fromJson(v as Map<String, dynamic>)).toList();
+  }
+
+  // GET /api/vuelos/estimacion (S3): duración habitual de la ruta y llegada sugerida. Es una ayuda: si el
+  // servicio no responde o la ruta no tiene datos, devuelve null y el formulario sigue sin la estimación.
+  static Future<EstimacionVuelo?> estimacion({
+    required String origen,
+    required String destino,
+    required String fecha,
+    required String hora,
+    String? horaLlegada,
+  }) async {
+    try {
+      final respuesta = await ApiClient.enviar(
+        'GET',
+        Uri.parse('${ApiConfig.vuelos}/api/vuelos/estimacion').replace(queryParameters: {
+          'origen': origen,
+          'destino': destino,
+          'fecha': fecha,
+          'hora': hora,
+          if (horaLlegada != null) 'horaLlegada': horaLlegada,
+        }),
+      );
+      if (!respuesta.ok) return null;
+      return EstimacionVuelo.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   // GET /api/vuelos/{id}/asientos (S3): disponibilidad real de cada asiento.
@@ -175,6 +203,7 @@ class AdminService {
     required String destino,
     required String fecha,
     required String hora,
+    String? horaLlegada,
     required double precio,
     required int totalAsientos,
     required String token,
@@ -188,6 +217,7 @@ class AdminService {
         'destino': destino,
         'fecha': fecha,
         'hora': hora,
+        'horaLlegada': horaLlegada,
         'precio': precio,
         'totalAsientos': totalAsientos,
         'activo': activo,
@@ -222,6 +252,7 @@ class GestionVuelosService {
     required String destino,
     required String fecha,
     required String hora,
+    String? horaLlegada,
     required double precio,
     required int totalAsientos,
     required String token,
@@ -235,6 +266,8 @@ class GestionVuelosService {
         'destino': destino,
         'fecha': fecha,
         'hora': hora,
+        // El PUT reemplaza el vuelo completo: sin este campo la llegada guardada se borraría.
+        'horaLlegada': horaLlegada,
         'precio': precio,
         'totalAsientos': totalAsientos,
       },

@@ -369,6 +369,7 @@ class _TarjetaVuelo extends StatelessWidget {
             children: [
               _DatoVuelo('Fecha', vuelo.fecha),
               _DatoVuelo('Salida', '${vuelo.hora} h'),
+              if (vuelo.horaLlegada != null) _DatoVuelo('Llegada', '${vuelo.horaLlegada} h${vuelo.llegaDiaSiguiente ? ' (+1)' : ''}'),
               _DatoVuelo('Vuelo', '#${vuelo.id}'),
             ],
           ),

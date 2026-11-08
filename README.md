@@ -124,3 +124,14 @@ Every error: `{"codigo": "<CODE>", "mensaje": "<text>"}`. Invalid input returns 
 - The internal endpoints under `/api/internal/` have no authentication. They are reachable by anyone who can reach port 5003 or 5005; use network isolation outside local development.
 - S1 and S2 share the identity database file; S4 and S5 share the reservations database file. This is the deliberate trade-off of the five-service design.
 - A JWT is validated locally by each service with a shared HS256 key; there is no token revocation.
+
+## Arrival time (`horaLlegada`)
+
+Flights carry an optional estimated arrival time (`HH:MM`, 24 h, local time at the destination). It lives in `vuelos.vuelos.hora_llegada` (migration `supabase/003_hora_llegada.sql`), is served by S3 as `horaLlegada` on public and admin endpoints and is included in the `<vuelo>` block of the invoice XML. An arrival earlier than the departure is read as the next day (`+1`); the server does not validate it against the departure. `PUT /api/admin/vuelos/{id}` replaces the whole flight, so clients must resend `horaLlegada` when editing.
+
+### Departure and arrival rules (S3)
+
+- `shared/horarios.py` holds the rules. Times are local to each airport; durations are computed in UTC with the airport time zone (Ecuador UTC-5, Madrid with daylight saving; `tzdata` is in `requirements.txt` for Windows).
+- Creating or editing a flight requires the departure (origin local time) to be in the future. When `horaLlegada` is sent and the route is known, the implied duration must be within the usual duration +/- 25 % (at least 20 minutes). Usual durations are rough averages in `DURACIONES_MIN` (UIO-GYE 55 min, UIO-MAD 9 h 45, MAD-UIO 10 h 40, GYE-MAD 9 h 50, MAD-GYE 10 h 40) and can be tuned there. Unknown routes skip the duration check.
+- `GET /api/vuelos/estimacion?origen&destino&fecha&hora[&horaLlegada]` returns the usual duration, the suggested arrival and whether a given arrival is coherent (404 `RUTA_SIN_ESTIMACION` for unknown routes). The Flutter flight form uses it to suggest the arrival.
+- `GET /api/vuelos?franja=madrugada|manana|tarde|noche` filters by departure band (00-06, 06-12, 12-18, 18-24). Explorar vuelos applies the same bands on the client.

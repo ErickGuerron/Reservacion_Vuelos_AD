@@ -120,7 +120,7 @@ Future<Uint8List> construirFacturaPdf(DatosFactura d) async {
                   ],
                 ),
                 pw.SizedBox(height: 8),
-                pw.Text('Fecha ${vuelo.fecha}   Salida ${vuelo.hora} h   Vuelo #${vuelo.id}', style: pw.TextStyle(fontSize: 11, color: PdfColors.white)),
+                pw.Text('Fecha ${vuelo.fecha}   Salida ${vuelo.hora} h   ${vuelo.horaLlegada == null ? '' : 'Llegada ${vuelo.horaLlegada} h${vuelo.llegaDiaSiguiente ? ' (+1)' : ''}   '}Vuelo #${vuelo.id}', style: pw.TextStyle(fontSize: 11, color: PdfColors.white)),
               ],
             ),
           ),

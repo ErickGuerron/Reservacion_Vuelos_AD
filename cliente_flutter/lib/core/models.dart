@@ -5,6 +5,7 @@ class Vuelo {
     required this.destino,
     required this.fecha,
     this.hora = '08:00',
+    this.horaLlegada,
     required this.precio,
     required this.asientosDisponibles,
     this.activo = true,
@@ -16,12 +17,20 @@ class Vuelo {
   final String fecha;
   // Hora de salida HH:MM (24 horas).
   final String hora;
+  // Hora estimada de llegada HH:MM, opcional (hora local del aeropuerto de destino).
+  final String? horaLlegada;
   final double precio;
   final int asientosDisponibles;
   // Un vuelo inactivo solo lo ve el administrador.
   final bool activo;
 
   bool get agotado => asientosDisponibles == 0;
+
+  // Si la llegada es anterior a la salida, el vuelo aterriza al día siguiente (el servidor no lo valida).
+  // "08:30" o "08:30 → 09:25" (con "+1" si llega al día siguiente).
+  String get horario => horaLlegada == null ? hora : '$hora → $horaLlegada${llegaDiaSiguiente ? ' (+1)' : ''}';
+
+  bool get llegaDiaSiguiente => horaLlegada != null && horaLlegada!.compareTo(hora) < 0;
 
   // Corte de venta: no se reserva con menos de 3 horas para la salida. La hora es de Ecuador (UTC-5).
   // El servidor es quien aplica la regla; esto solo evita ofrecer una reserva que sería rechazada.
@@ -38,6 +47,7 @@ class Vuelo {
         destino: json['destino'] as String,
         fecha: json['fecha'] as String,
         hora: json['hora'] as String? ?? '08:00',
+        horaLlegada: json['horaLlegada'] as String?,
         precio: (json['precio'] as num).toDouble(),
         asientosDisponibles: (json['asientosDisponibles'] as num).toInt(),
         activo: json['activo'] as bool? ?? true,
@@ -52,6 +62,7 @@ class VueloAdmin {
     required this.destino,
     required this.fecha,
     this.hora = '08:00',
+    this.horaLlegada,
     required this.precio,
     required this.totalAsientos,
     required this.asientosDisponibles,
@@ -65,6 +76,7 @@ class VueloAdmin {
   final String destino;
   final String fecha;
   final String hora;
+  final String? horaLlegada;
   final double precio;
   final int totalAsientos;
   final int asientosDisponibles;
@@ -78,6 +90,7 @@ class VueloAdmin {
         destino: json['destino'] as String,
         fecha: json['fecha'] as String,
         hora: json['hora'] as String? ?? '08:00',
+        horaLlegada: json['horaLlegada'] as String?,
         precio: (json['precio'] as num).toDouble(),
         totalAsientos: (json['totalAsientos'] as num).toInt(),
         asientosDisponibles: (json['asientosDisponibles'] as num).toInt(),

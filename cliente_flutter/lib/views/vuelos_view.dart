@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/api_client.dart';
+import '../core/horarios.dart';
+import '../core/lotes.dart';
 import '../core/models.dart';
 import '../core/roles.dart';
 import '../core/services.dart';
@@ -14,8 +16,21 @@ import 'reserva_dialog.dart';
 
 const _ciudades = {'UIO': 'Quito', 'GYE': 'Guayaquil', 'MAD': 'Madrid'};
 const _umbralUltimosCupos = 15; // criterio de la interfaz para resaltar pocos asientos
+const _dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const _meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+enum _Orden { salida, precio, cupos }
+
+// "2026-11-10" -> "Mar 10 nov".
+String _etiquetaFecha(String iso) {
+  final f = DateTime.tryParse(iso);
+  if (f == null) return iso;
+  return '${_dias[f.weekday - 1]} ${f.day} ${_meses[f.month - 1]}';
+}
 
 // Vista de vuelos (vuelos.html / vuelos.js): consulta GET /api/vuelos (S3) y abre el modal de reserva (S4).
+// Se trae la ruta completa y la fecha, el orden y los últimos cupos se filtran aquí, para poder mostrar
+// la franja de fechas con vuelos y su precio más bajo.
 class VuelosView extends StatefulWidget {
   const VuelosView({super.key, required this.onIrALogin});
 
@@ -29,11 +44,13 @@ class _VuelosViewState extends State<VuelosView> {
   String _origen = 'UIO';
   String _destino = 'GYE'; // "ALL" = todos los destinos
   DateTime? _fecha;
+  _Orden _orden = _Orden.salida;
+  bool _soloUltimos = false;
+  Franja? _franja;
 
-  List<Vuelo> _vuelos = const [];
+  List<Vuelo> _todos = const [];
   // Solo para administradores: datos de gestión de cada vuelo (ocupación, si puede editarse).
   Map<int, VueloAdmin> _gestion = {};
-  String _contador = 'Consultando...';
   ({TipoAlerta tipo, String texto})? _alerta;
   bool _cargando = false;
 
@@ -49,7 +66,9 @@ class _VuelosViewState extends State<VuelosView> {
       final tmp = _origen;
       _origen = _destino;
       _destino = tmp;
+      _fecha = null;
     });
+    _buscar();
   }
 
   Future<void> _elegirFecha() async {
@@ -64,36 +83,26 @@ class _VuelosViewState extends State<VuelosView> {
   }
 
   Future<void> _buscar() async {
-    setState(() {
-      _cargando = true;
-      _contador = 'Consultando el servicio S3...';
-    });
+    setState(() => _cargando = true);
     try {
       final vuelos = Permisos(session.rol).puedeGestionarVuelos
           ? await _buscarComoAdmin()
-          : await VuelosService.buscar(
-              origen: _origen,
-              destino: _destino == 'ALL' ? null : _destino,
-              fecha: _fecha == null ? null : _formatoFecha(_fecha!),
-            );
+          : await VuelosService.buscar(origen: _origen, destino: _destino == 'ALL' ? null : _destino);
       if (!mounted) return;
       setState(() {
-        _vuelos = vuelos;
+        _todos = vuelos;
         _alerta = null;
-        _contador = '${vuelos.length} ${vuelos.length == 1 ? 'vuelo encontrado' : 'vuelos encontrados'}';
       });
     } on ConexionFallida {
       if (!mounted) return;
       setState(() {
-        _vuelos = const [];
-        _contador = 'Servicio de vuelos no disponible.';
+        _todos = const [];
         _alerta = (tipo: TipoAlerta.error, texto: 'No se pudo conectar con el servicio de vuelos. ¿Está levantado en :5003?');
       });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _vuelos = const [];
-        _contador = 'No se pudo consultar los vuelos.';
+        _todos = const [];
         _alerta = (tipo: TipoAlerta.error, texto: e.mensaje);
       });
     } finally {
@@ -101,26 +110,71 @@ class _VuelosViewState extends State<VuelosView> {
     }
   }
 
-  // El administrador también ve los borradores: consulta el listado de gestión y filtra aquí.
+  // El administrador también ve los borradores: consulta el listado de gestión y filtra la ruta aquí.
   Future<List<Vuelo>> _buscarComoAdmin() async {
     final todos = await GestionVuelosService.listar(token: session.token ?? '');
     _gestion = {for (final v in todos) v.id: v};
-    final fecha = _fecha == null ? null : _formatoFecha(_fecha!);
     return [
       for (final v in todos)
-        if (v.origen == _origen && (_destino == 'ALL' || v.destino == _destino) && (fecha == null || v.fecha == fecha))
+        if (v.origen == _origen && (_destino == 'ALL' || v.destino == _destino))
           Vuelo(
             id: v.id,
             origen: v.origen,
             destino: v.destino,
             fecha: v.fecha,
             hora: v.hora,
+            horaLlegada: v.horaLlegada,
             precio: v.precio,
             asientosDisponibles: v.asientosDisponibles,
             activo: v.activo,
           ),
     ];
   }
+
+  // Vuelos que se muestran: filtro de fecha y de últimos cupos, y el orden elegido.
+  List<Vuelo> get _visibles {
+    final fecha = _fecha == null ? null : _formatoFecha(_fecha!);
+    final lista = [
+      for (final v in _todos)
+        if ((fecha == null || v.fecha == fecha) &&
+            (_franja == null || Franja.de(v.hora) == _franja) &&
+            (!_soloUltimos || (v.asientosDisponibles > 0 && v.asientosDisponibles <= _umbralUltimosCupos)))
+          v,
+    ];
+    int porSalida(Vuelo a, Vuelo b) {
+      final c = a.fecha.compareTo(b.fecha);
+      return c != 0 ? c : a.hora.compareTo(b.hora);
+    }
+
+    if (_orden == _Orden.precio) {
+      lista.sort((a, b) {
+        final c = a.precio.compareTo(b.precio);
+        return c != 0 ? c : porSalida(a, b);
+      });
+    } else if (_orden == _Orden.cupos) {
+      lista.sort((a, b) => b.asientosDisponibles.compareTo(a.asientosDisponibles));
+    } else {
+      lista.sort(porSalida);
+    }
+    return lista;
+  }
+
+  // Fechas con vuelos en la ruta elegida y el precio más bajo de cada una.
+  List<({String fecha, double desde})> get _fechasConVuelos {
+    final desde = <String, double>{};
+    for (final v in _todos) {
+      final actual = desde[v.fecha];
+      if (actual == null || v.precio < actual) desde[v.fecha] = v.precio;
+    }
+    final fechas = desde.keys.toList()..sort();
+    return [for (final f in fechas) (fecha: f, desde: desde[f]!)];
+  }
+
+  void _limpiarFiltros() => setState(() {
+        _fecha = null;
+        _soloUltimos = false;
+        _franja = null;
+      });
 
   Widget? _accionesAdmin(Vuelo vuelo) {
     final gestion = _gestion[vuelo.id];
@@ -190,39 +244,75 @@ class _VuelosViewState extends State<VuelosView> {
   Widget build(BuildContext context) {
     final ancho = MediaQuery.sizeOf(context).width;
     final margen = ancho >= 768 ? AppSpacing.margin : AppSpacing.marginMobile;
-    final rutas = {for (final v in _vuelos) '${v.origen}-${v.destino}'}.length;
+    final lista = _visibles;
+    final esAdmin = Permisos(session.rol).puedeGestionarVuelos;
+    final destinoTexto = _destino == 'ALL' ? 'todos los destinos' : (_ciudades[_destino] ?? _destino);
+    final cuenta = _cargando && _todos.isEmpty
+        ? 'Consultando vuelos...'
+        : '${lista.length} ${lista.length == 1 ? 'vuelo encontrado' : 'vuelos encontrados'}';
+    final subtitulo = '$cuenta · ${_ciudades[_origen] ?? _origen} → $destinoTexto'
+        '${_fecha == null ? ' · todas las fechas' : ' · ${_etiquetaFecha(_formatoFecha(_fecha!))}'}';
+    final fechas = _fechasConVuelos;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Telemetria(rutas: rutas, margen: margen),
-        Transform.translate(
-          offset: const Offset(0, -32),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: margen),
-            child: _Buscador(
-              origen: _origen,
-              destino: _destino,
-              fecha: _fecha,
-              contador: _contador,
-              alerta: _alerta,
-              cargando: _cargando,
-              onOrigen: (v) => setState(() => _origen = v),
-              onDestino: (v) => setState(() => _destino = v),
-              onInvertir: _invertir,
-              onElegirFecha: _elegirFecha,
-              onLimpiarFecha: () => setState(() => _fecha = null),
-              onBuscar: _buscar,
-            ),
+        _Cabecera(margen: margen),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: margen),
+          child: _Buscador(
+            origen: _origen,
+            destino: _destino,
+            fecha: _fecha,
+            alerta: _alerta,
+            cargando: _cargando,
+            onOrigen: (v) {
+              setState(() {
+                _origen = v;
+                _fecha = null;
+              });
+              _buscar();
+            },
+            onDestino: (v) {
+              setState(() {
+                _destino = v;
+                _fecha = null;
+              });
+              _buscar();
+            },
+            onInvertir: _invertir,
+            onElegirFecha: _elegirFecha,
+            onLimpiarFecha: () => setState(() => _fecha = null),
+            onBuscar: _buscar,
+            franja: fechas.isEmpty
+                ? null
+                : _FranjaFechas(
+                    fechas: fechas,
+                    total: _todos.length,
+                    seleccionada: _fecha == null ? null : _formatoFecha(_fecha!),
+                    onElegir: (f) => setState(() => _fecha = f == null ? null : DateTime.tryParse(f)),
+                  ),
           ),
         ),
+        if (_cargando) const Padding(padding: EdgeInsets.only(top: AppSpacing.sm), child: LinearProgressIndicator(minHeight: 3)),
         Padding(
-          padding: EdgeInsets.fromLTRB(margen, 0, margen, AppSpacing.xl),
+          padding: EdgeInsets.fromLTRB(margen, AppSpacing.lg, margen, AppSpacing.xl),
           child: ResultadosVuelos(
-            vuelos: _vuelos,
+            vuelos: lista,
             onReservar: _reservar,
-            acciones: Permisos(session.rol).puedeGestionarVuelos ? _accionesAdmin : null,
+            acciones: esAdmin ? _accionesAdmin : null,
             onCrear: Permisos(session.rol).puedeCrearVuelos ? _crearVuelo : null,
+            gestion: _gestion,
+            subtitulo: subtitulo,
+            onLimpiarFiltros: _fecha == null && !_soloUltimos && _franja == null ? null : _limpiarFiltros,
+            controles: _Controles(
+              orden: _orden,
+              soloUltimos: _soloUltimos,
+              franja: _franja,
+              onFranja: (f) => setState(() => _franja = f),
+              onOrden: (o) => setState(() => _orden = o),
+              onUltimos: (v) => setState(() => _soloUltimos = v),
+            ),
           ),
         ),
         const HubEstaciones(),
@@ -233,10 +323,9 @@ class _VuelosViewState extends State<VuelosView> {
 
 String _formatoFecha(DateTime f) => '${f.year.toString().padLeft(4, '0')}-${f.month.toString().padLeft(2, '0')}-${f.day.toString().padLeft(2, '0')}';
 
-class _Telemetria extends StatelessWidget {
-  const _Telemetria({required this.rutas, required this.margen});
+class _Cabecera extends StatelessWidget {
+  const _Cabecera({required this.margen});
 
-  final int rutas;
   final double margen;
 
   @override
@@ -244,76 +333,16 @@ class _Telemetria extends StatelessWidget {
     // headline-xl-mobile (32px) en móvil y headline-xl (44px) desde md.
     final tamanioTitulo = MediaQuery.sizeOf(context).width >= 768 ? 44.0 : 32.0;
 
-    return Container(
-      width: double.infinity,
-      color: AppColors.surfaceContainerLow,
-      padding: EdgeInsets.fromLTRB(margen, AppSpacing.xl, margen, AppSpacing.xl + 32),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(margen, AppSpacing.xl, margen, AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(color: AppColors.secondaryContainer.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(999)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle)),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text('MICROSERVICIO S3 [:5003] ENLACE ACTIVO', style: AppTheme.telemetry(size: 12, weight: FontWeight.w700, color: AppColors.onSecondaryContainer)),
-                    ),
-                  ],
-                ),
-              ),
-              Text('REST/JSON', style: AppTheme.telemetry(size: 12, color: AppColors.onSurfaceVariant)),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text('Exploración de Vuelos y Cupos en Tiempo Real', style: AppTheme.headlineXl().copyWith(fontSize: tamanioTitulo)),
+          Text('Explorar vuelos', style: AppTheme.headlineXl().copyWith(fontSize: tamanioTitulo)),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Consulta sincronizada con el servicio de vuelos. Seleccione su itinerario y asegure su plaza al instante.',
+            'Elige tu ruta y tu fecha, compara horarios de salida y llegada, y reserva con cupos en tiempo real.',
             style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLowest,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('TELEMETRÍA DE FLOTA', style: AppTheme.labelSm(color: AppColors.onSurfaceVariant).copyWith(letterSpacing: 1)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Text('$rutas Rutas', style: AppTheme.headlineSm()),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: AppColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
-                            child: Text('LIVE SYNC', style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.secondary)),
-                          ),
-                        ],
-                      ),
-                      Text('Conexión con el servicio de vuelos :5003', style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -326,7 +355,6 @@ class _Buscador extends StatelessWidget {
     required this.origen,
     required this.destino,
     required this.fecha,
-    required this.contador,
     required this.alerta,
     required this.cargando,
     required this.onOrigen,
@@ -335,12 +363,12 @@ class _Buscador extends StatelessWidget {
     required this.onElegirFecha,
     required this.onLimpiarFecha,
     required this.onBuscar,
+    this.franja,
   });
 
   final String origen;
   final String destino;
   final DateTime? fecha;
-  final String contador;
   final ({TipoAlerta tipo, String texto})? alerta;
   final bool cargando;
   final ValueChanged<String> onOrigen;
@@ -349,6 +377,8 @@ class _Buscador extends StatelessWidget {
   final VoidCallback onElegirFecha;
   final VoidCallback onLimpiarFecha;
   final VoidCallback onBuscar;
+  // Fechas con vuelos de la ruta elegida.
+  final Widget? franja;
 
   @override
   Widget build(BuildContext context) {
@@ -377,7 +407,7 @@ class _Buscador extends StatelessWidget {
       onChanged: onDestino,
     );
     final fechaCampo = _CampoConEtiqueta(
-      etiqueta: 'Fecha del itinerario',
+      etiqueta: 'Fecha',
       child: InkWell(
         onTap: onElegirFecha,
         child: Container(
@@ -401,12 +431,12 @@ class _Buscador extends StatelessWidget {
         ),
       ),
     );
-    final botonFiltrar = SizedBox(
+    final botonBuscar = SizedBox(
       height: 44,
       child: FilledButton.icon(
         onPressed: cargando ? null : onBuscar,
         icon: const Icon(Icons.search, size: 18),
-        label: Text('Filtrar', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w600)),
+        label: Text('Buscar', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w600)),
         style: FilledButton.styleFrom(backgroundColor: AppColors.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
       ),
     );
@@ -431,7 +461,7 @@ class _Buscador extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(flex: 2, child: fechaCampo),
               const SizedBox(width: AppSpacing.sm),
-              Expanded(flex: 1, child: botonFiltrar),
+              Expanded(flex: 1, child: botonBuscar),
             ],
           )
         : Column(
@@ -443,7 +473,7 @@ class _Buscador extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               fechaCampo,
               const SizedBox(height: AppSpacing.sm),
-              botonFiltrar,
+              botonBuscar,
             ],
           );
 
@@ -452,53 +482,18 @@ class _Buscador extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 30, offset: const Offset(0, 12))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceVariant),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 6))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.surfaceContainer, borderRadius: BorderRadius.circular(8)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.flight_takeoff, size: 16, color: AppColors.secondary),
-                        const SizedBox(width: 4),
-                        Text('Búsqueda Directa', style: AppTheme.labelMd()),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(child: Text('GET /api/vuelos', style: AppTheme.telemetry(size: 12, color: AppColors.onSurfaceVariant))),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle)),
-                    const SizedBox(width: 6),
-                    Flexible(child: Text(contador, style: AppTheme.labelMd())),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
           formulario,
+          if (franja != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            franja!,
+          ],
           if (alerta != null) ...[
             const SizedBox(height: AppSpacing.md),
             Alerta(tipo: alerta!.tipo, texto: alerta!.texto),
@@ -561,8 +556,261 @@ class _Select extends StatelessWidget {
   }
 }
 
+// Franja "Fechas con vuelos": un botón por día con el precio más bajo. "Todas" quita el filtro de fecha.
+class _FranjaFechas extends StatelessWidget {
+  const _FranjaFechas({required this.fechas, required this.total, required this.seleccionada, required this.onElegir});
+
+  final List<({String fecha, double desde})> fechas;
+  final int total;
+  final String? seleccionada;
+  final ValueChanged<String?> onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('FECHAS CON VUELOS', style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            _ChipFecha(
+              titulo: 'Todas',
+              subtitulo: '$total ${total == 1 ? 'vuelo' : 'vuelos'}',
+              activo: seleccionada == null,
+              onTap: () => onElegir(null),
+            ),
+            for (final f in fechas)
+              _ChipFecha(
+                titulo: _etiquetaFecha(f.fecha),
+                subtitulo: 'desde \$${f.desde.toStringAsFixed(f.desde == f.desde.roundToDouble() ? 0 : 2)}',
+                activo: seleccionada == f.fecha,
+                onTap: () => onElegir(f.fecha),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ChipFecha extends StatelessWidget {
+  const _ChipFecha({required this.titulo, required this.subtitulo, required this.activo, required this.onTap});
+
+  final String titulo;
+  final String subtitulo;
+  final bool activo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: activo,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 52, minWidth: 116),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+          decoration: BoxDecoration(
+            color: activo ? AppColors.slate900 : AppColors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: activo ? AppColors.slate900 : AppColors.slate300, width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(titulo, style: AppTheme.labelLg(color: activo ? Colors.white : AppColors.onSurface).copyWith(fontWeight: FontWeight.w700)),
+              Text(subtitulo, style: AppTheme.bodySm(color: activo ? AppColors.slate300 : AppColors.slate600).copyWith(fontSize: 12)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Barra de filtros: tres grupos con la misma altura y segmentos del mismo ancho (4 + 3 + 2 segmentos, con
+// proporción 4:3:2). En pantallas angostas los grupos se apilan a todo el ancho.
+class _Controles extends StatelessWidget {
+  const _Controles({
+    required this.orden,
+    required this.soloUltimos,
+    required this.franja,
+    required this.onFranja,
+    required this.onOrden,
+    required this.onUltimos,
+  });
+
+  final _Orden orden;
+  final bool soloUltimos;
+  final Franja? franja;
+  // null quita el filtro (se vuelve a tocar la franja elegida).
+  final ValueChanged<Franja?> onFranja;
+  final ValueChanged<_Orden> onOrden;
+  final ValueChanged<bool> onUltimos;
+
+  @override
+  Widget build(BuildContext context) {
+    final salida = _GrupoFiltro(
+      etiqueta: 'HORA DE SALIDA',
+      child: _Segmentos<Franja>(
+        opciones: [for (final f in Franja.values) _Opcion(f, f.etiqueta, ayuda: f.rango)],
+        valor: franja,
+        onElegir: (f) => onFranja(f == franja ? null : f),
+      ),
+    );
+    final ordenar = _GrupoFiltro(
+      etiqueta: 'ORDENAR POR',
+      child: _Segmentos<_Orden>(
+        opciones: const [
+          _Opcion(_Orden.salida, 'Más temprano'),
+          _Opcion(_Orden.precio, 'Más barato'),
+          _Opcion(_Orden.cupos, 'Más cupos'),
+        ],
+        valor: orden,
+        onElegir: onOrden,
+      ),
+    );
+    final cupos = _GrupoFiltro(
+      etiqueta: 'DISPONIBILIDAD',
+      child: _Segmentos<bool>(
+        opciones: const [_Opcion(false, 'Todos'), _Opcion(true, 'Últimos cupos')],
+        valor: soloUltimos,
+        onElegir: onUltimos,
+      ),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.surfaceVariant),
+      ),
+      child: LayoutBuilder(builder: (context, restricciones) {
+        if (restricciones.maxWidth >= 900) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 4, child: salida),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(flex: 3, child: ordenar),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(flex: 2, child: cupos),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [salida, const SizedBox(height: AppSpacing.md), ordenar, const SizedBox(height: AppSpacing.md), cupos],
+        );
+      }),
+    );
+  }
+}
+
+class _GrupoFiltro extends StatelessWidget {
+  const _GrupoFiltro({required this.etiqueta, required this.child});
+
+  final String etiqueta;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(etiqueta, style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+class _Opcion<T> {
+  const _Opcion(this.valor, this.etiqueta, {this.ayuda});
+
+  final T valor;
+  final String etiqueta;
+  final String? ayuda;
+}
+
+// Control segmentado: segmentos del mismo ancho en un riel de 44 px; el elegido se rellena de oscuro.
+class _Segmentos<T> extends StatelessWidget {
+  const _Segmentos({required this.opciones, required this.valor, required this.onElegir});
+
+  final List<_Opcion<T>> opciones;
+  final T? valor;
+  final ValueChanged<T> onElegir;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.slate300),
+      ),
+      child: Row(
+        children: [
+          for (final o in opciones)
+            Expanded(
+              child: Tooltip(
+                message: o.ayuda ?? o.etiqueta,
+                child: Semantics(
+                  button: true,
+                  selected: o.valor == valor,
+                  label: o.etiqueta,
+                  child: InkWell(
+                    onTap: () => onElegir(o.valor),
+                    borderRadius: BorderRadius.circular(9),
+                    child: Container(
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: o.valor == valor ? AppColors.slate900 : Colors.transparent,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          o.etiqueta,
+                          maxLines: 1,
+                          style: AppTheme.labelLg(color: o.valor == valor ? Colors.white : AppColors.onSurface),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class ResultadosVuelos extends StatelessWidget {
-  const ResultadosVuelos({super.key, required this.vuelos, required this.onReservar, this.acciones, this.onCrear});
+  const ResultadosVuelos({
+    super.key,
+    required this.vuelos,
+    required this.onReservar,
+    this.acciones,
+    this.onCrear,
+    this.gestion = const {},
+    this.subtitulo,
+    this.controles,
+    this.onLimpiarFiltros,
+  });
 
   final List<Vuelo> vuelos;
   final ValueChanged<Vuelo> onReservar;
@@ -570,13 +818,19 @@ class ResultadosVuelos extends StatelessWidget {
   final Widget? Function(Vuelo vuelo)? acciones;
   // Solo administradores: crear un vuelo desde la cabecera de resultados.
   final VoidCallback? onCrear;
+  // Datos de ocupación por vuelo (solo administrador).
+  final Map<int, VueloAdmin> gestion;
+  final String? subtitulo;
+  // Orden y filtros, bajo el título.
+  final Widget? controles;
+  // Si hay filtros activos, el estado vacío ofrece quitarlos.
+  final VoidCallback? onLimpiarFiltros;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: AppSpacing.md),
         Wrap(
           spacing: AppSpacing.md,
           runSpacing: AppSpacing.md,
@@ -587,7 +841,7 @@ class ResultadosVuelos extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Vuelos disponibles', style: AppTheme.headlineMd()),
-                Text('Datos sincronizados con el servicio de vuelos (S3, :5003).', style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
+                if (subtitulo != null) Text(subtitulo!, style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
               ],
             ),
             if (onCrear != null)
@@ -602,14 +856,23 @@ class ResultadosVuelos extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        if (controles != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          controles!,
+        ],
+        const SizedBox(height: AppSpacing.md),
         if (vuelos.isEmpty)
-          Text('No hay vuelos con esos filtros.', style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant))
+          _SinVuelos(onLimpiar: onLimpiarFiltros)
         else
           Column(
             children: [
               for (final vuelo in vuelos) ...[
-                _TarjetaBoleto(vuelo: vuelo, onReservar: () => onReservar(vuelo), acciones: acciones?.call(vuelo)),
+                _FilaVuelo(
+                  vuelo: vuelo,
+                  onReservar: () => onReservar(vuelo),
+                  acciones: acciones?.call(vuelo),
+                  gestion: gestion[vuelo.id],
+                ),
                 const SizedBox(height: AppSpacing.md),
               ],
             ],
@@ -619,102 +882,115 @@ class ResultadosVuelos extends StatelessWidget {
   }
 }
 
-// Boleto de abordaje: cuerpo con el trayecto, línea punteada de corte y talón con tarifa y reserva.
-// En pantallas angostas el talón baja debajo del cuerpo, separado por la misma línea en horizontal.
-class _TarjetaBoleto extends StatelessWidget {
-  const _TarjetaBoleto({required this.vuelo, required this.onReservar, this.acciones});
+class _SinVuelos extends StatelessWidget {
+  const _SinVuelos({this.onLimpiar});
+
+  final VoidCallback? onLimpiar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.search_off, size: 36, color: AppColors.secondary),
+          const SizedBox(height: AppSpacing.sm),
+          Text('No hay vuelos con esos filtros.', style: AppTheme.headlineSm(), textAlign: TextAlign.center),
+          const SizedBox(height: 4),
+          Text('Prueba con otra fecha o mira todos los destinos desde tu origen.',
+              style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant), textAlign: TextAlign.center),
+          if (onLimpiar != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton(onPressed: onLimpiar, child: const Text('Quitar filtros')),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// Fila de vuelo: salida → llegada, ruta, cupos, precio con IVA y reserva.
+// En pantallas angostas las partes se apilan; la franja de administración queda al pie.
+class _FilaVuelo extends StatelessWidget {
+  const _FilaVuelo({required this.vuelo, required this.onReservar, this.acciones, this.gestion});
 
   final Vuelo vuelo;
   final VoidCallback onReservar;
   final Widget? acciones;
+  final VueloAdmin? gestion;
 
   @override
   Widget build(BuildContext context) {
     final agotado = vuelo.agotado;
-    final ancho = MediaQuery.sizeOf(context).width;
-    final lateral = ancho >= 720;
+    final boton = Permisos(session.rol).puedeReservar
+        ? SizedBox(
+            height: 48,
+            child: FilledButton(
+              onPressed: agotado || !vuelo.activo || vuelo.ventaCerrada ? null : onReservar,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                disabledBackgroundColor: AppColors.surfaceContainerHighest,
+                disabledForegroundColor: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(
+                agotado ? 'Agotado' : (vuelo.ventaCerrada ? 'Venta cerrada' : 'Reservar'),
+                style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+          )
+        : null;
 
-    final cuerpo = Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
+    final contenido = LayoutBuilder(builder: (context, restricciones) {
+      final ancha = restricciones.maxWidth >= 860;
+      if (ancha) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(width: 210, child: _Horario(vuelo: vuelo)),
+            const SizedBox(width: AppSpacing.lg),
+            Expanded(child: _Ruta(origen: vuelo.origen, destino: vuelo.destino)),
+            const SizedBox(width: AppSpacing.lg),
+            SizedBox(width: 190, child: _Cupos(vuelo: vuelo)),
+            const SizedBox(width: AppSpacing.lg),
+            SizedBox(width: 150, child: _Precio(vuelo: vuelo)),
+            if (boton != null) ...[
+              const SizedBox(width: AppSpacing.lg),
+              SizedBox(width: 150, child: boton),
+            ],
+          ],
+        );
+      }
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text('VUELO #${vuelo.id}', style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
-              _InsigniaEstado(vuelo: vuelo),
-            ],
-          ),
+          _Horario(vuelo: vuelo),
+          const SizedBox(height: AppSpacing.md),
+          _Ruta(origen: vuelo.origen, destino: vuelo.destino),
           const SizedBox(height: AppSpacing.md),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Expanded(child: _Ciudad(codigo: vuelo.origen, alineacion: CrossAxisAlignment.start)),
-              Expanded(flex: 2, child: _Trayecto(fecha: vuelo.fecha, hora: vuelo.hora)),
-              Expanded(child: _Ciudad(codigo: vuelo.destino, alineacion: CrossAxisAlignment.end)),
+              Expanded(child: _Cupos(vuelo: vuelo)),
+              const SizedBox(width: AppSpacing.md),
+              _Precio(vuelo: vuelo),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              _Dato(icono: Icons.calendar_today_outlined, texto: vuelo.fecha),
-              _Dato(icono: Icons.schedule, texto: '${vuelo.hora} h'),
-              _Dato(
-                icono: Icons.event_seat_outlined,
-                texto: agotado ? 'Sin asientos' : '${vuelo.asientosDisponibles} libres',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-
-    final talon = Container(
-      width: lateral ? 260 : double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      color: AppColors.surfaceContainerLow,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('TARIFA POR PASAJERO', style: AppTheme.labelSm(color: AppColors.onSurfaceVariant).copyWith(letterSpacing: 1)),
-          const SizedBox(height: 4),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: '\$${vuelo.precio.toStringAsFixed(2)}', style: AppTheme.headlineLg().copyWith(fontWeight: FontWeight.w800)),
-                TextSpan(text: ' USD', style: AppTheme.telemetry(size: 12, color: AppColors.onSurfaceVariant)),
-              ],
-            ),
-          ),
-          if (acciones != null) ...[
+          if (boton != null) ...[
             const SizedBox(height: AppSpacing.md),
-            acciones!,
+            boton,
           ],
-          const SizedBox(height: AppSpacing.md),
-          if (Permisos(session.rol).puedeReservar)
-            SizedBox(
-              height: 44,
-              child: FilledButton(
-                onPressed: agotado || !vuelo.activo || vuelo.ventaCerrada ? null : onReservar,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  disabledBackgroundColor: AppColors.surfaceContainerHighest,
-                  disabledForegroundColor: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Text(
-                  agotado ? 'Agotado' : (vuelo.ventaCerrada ? 'Venta cerrada' : 'Reservar vuelo'),
-                  style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
         ],
-      ),
-    );
+      );
+    });
+
+    final admin = acciones != null || gestion != null;
 
     return Opacity(
       opacity: agotado ? 0.85 : 1,
@@ -726,26 +1002,155 @@ class _TarjetaBoleto extends StatelessWidget {
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
         ),
         clipBehavior: Clip.antiAlias,
-        child: lateral
-            ? IntrinsicHeight(
-                child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(padding: const EdgeInsets.all(AppSpacing.lg), child: contenido),
+            if (admin)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                decoration: const BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  border: Border(top: BorderSide(color: AppColors.surfaceVariant)),
+                ),
+                child: Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.sm,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Expanded(child: cuerpo),
-                    const _LineaCorte(vertical: true),
-                    talon,
+                    Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text('VUELO #${vuelo.id}', style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
+                        if (gestion != null)
+                          Text('${gestion!.asientosOcupados} de ${gestion!.totalAsientos} asientos ocupados',
+                              style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
+                      ],
+                    ),
+                    if (acciones != null) acciones!,
                   ],
                 ),
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [cuerpo, const _LineaCorte(vertical: false), talon],
               ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// Línea de corte punteada entre el cuerpo y el talón del boleto.
+// Salida → llegada. La llegada es opcional: sin ella se avisa que está por confirmar.
+class _Horario extends StatelessWidget {
+  const _Horario({required this.vuelo});
+
+  final Vuelo vuelo;
+
+  @override
+  Widget build(BuildContext context) {
+    final estilo = AppTheme.telemetry(size: 22, weight: FontWeight.w700, color: AppColors.onSurface);
+    final llegada = vuelo.horaLlegada;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 2,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(vuelo.hora, style: estilo),
+            if (llegada != null) ...[
+              const Icon(Icons.arrow_forward, size: 16, color: AppColors.outline),
+              Text(llegada, style: estilo),
+              if (vuelo.llegaDiaSiguiente) Text('+1', style: AppTheme.telemetry(size: 12, weight: FontWeight.w700, color: AppColors.secondary)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          llegada == null ? '${_etiquetaFecha(vuelo.fecha)} · llegada por confirmar' : _etiquetaFecha(vuelo.fecha),
+          style: AppTheme.bodySm(color: AppColors.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+class _Ruta extends StatelessWidget {
+  const _Ruta({required this.origen, required this.destino});
+
+  final String origen;
+  final String destino;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _Ciudad(codigo: origen, alineacion: CrossAxisAlignment.start),
+        const Expanded(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Row(
+              children: [
+                Expanded(child: _LineaCorte(vertical: false)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Icon(Icons.flight, size: 18, color: AppColors.secondary),
+                ),
+                Expanded(child: _LineaCorte(vertical: false)),
+              ],
+            ),
+          ),
+        ),
+        _Ciudad(codigo: destino, alineacion: CrossAxisAlignment.end),
+      ],
+    );
+  }
+}
+
+class _Cupos extends StatelessWidget {
+  const _Cupos({required this.vuelo});
+
+  final Vuelo vuelo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _InsigniaEstado(vuelo: vuelo),
+        const SizedBox(height: 6),
+        Text(
+          vuelo.agotado ? 'Sin asientos disponibles' : '${vuelo.asientosDisponibles} asientos libres',
+          style: AppTheme.labelMd(color: AppColors.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+}
+
+// Tarifa por pasajero y su total con IVA 15 % (el mismo cálculo de la factura).
+class _Precio extends StatelessWidget {
+  const _Precio({required this.vuelo});
+
+  final Vuelo vuelo;
+
+  @override
+  Widget build(BuildContext context) {
+    final conIva = vuelo.precio + calcularIva(vuelo.precio);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('\$${vuelo.precio.toStringAsFixed(2)}', style: AppTheme.headlineMd().copyWith(fontWeight: FontWeight.w800)),
+        Text('\$${conIva.toStringAsFixed(2)} con IVA 15 %', style: AppTheme.bodySm(color: AppColors.onSurfaceVariant).copyWith(fontSize: 12)),
+      ],
+    );
+  }
+}
+
+// Línea punteada (horizontal o vertical) del trayecto.
 class _LineaCorte extends StatelessWidget {
   const _LineaCorte({required this.vertical});
 
@@ -788,29 +1193,6 @@ class _PintorCorte extends CustomPainter {
   bool shouldRepaint(covariant _PintorCorte antiguo) => antiguo.vertical != vertical;
 }
 
-class _Dato extends StatelessWidget {
-  const _Dato({required this.icono, required this.texto});
-
-  final IconData icono;
-  final String texto;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: AppColors.surfaceContainerLow, borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icono, size: 14, color: AppColors.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Text(texto, style: AppTheme.labelMd(color: AppColors.onSurface)),
-        ],
-      ),
-    );
-  }
-}
-
 class _InsigniaEstado extends StatelessWidget {
   const _InsigniaEstado({required this.vuelo});
   final Vuelo vuelo;
@@ -843,36 +1225,8 @@ class _Ciudad extends StatelessWidget {
     return Column(
       crossAxisAlignment: alineacion,
       children: [
-        Text(codigo, style: AppTheme.headlineLg().copyWith(fontWeight: FontWeight.w800, height: 1)),
+        Text(codigo, style: AppTheme.headlineMd().copyWith(fontWeight: FontWeight.w800, height: 1.1)),
         Text(_ciudades[codigo] ?? codigo, style: AppTheme.bodySm().copyWith(fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
-// Trayecto: línea punteada con el avión al centro, entre origen y destino.
-class _Trayecto extends StatelessWidget {
-  const _Trayecto({required this.fecha, required this.hora});
-
-  final String fecha;
-  final String hora;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Expanded(child: _LineaCorte(vertical: false)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.flight, size: 20, color: AppColors.secondary),
-            ),
-            const Expanded(child: _LineaCorte(vertical: false)),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text('$fecha · $hora', style: AppTheme.telemetry(size: 11, color: AppColors.onSurfaceVariant), textAlign: TextAlign.center),
       ],
     );
   }

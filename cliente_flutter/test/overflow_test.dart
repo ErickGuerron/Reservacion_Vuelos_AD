@@ -45,8 +45,8 @@ const _vuelosAdmin = [
 
 // Vuelos de ejemplo para la tabla: fechas futuras para que la venta no aparezca como cerrada.
 const _vuelosEjemplo = [
-  Vuelo(id: 1, origen: 'UIO', destino: 'GYE', fecha: '2031-11-10', hora: '08:30', precio: 45.0, asientosDisponibles: 30, activo: true),
-  Vuelo(id: 2, origen: 'UIO', destino: 'MAD', fecha: '2031-12-01', hora: '22:10', precio: 780.0, asientosDisponibles: 0, activo: true),
+  Vuelo(id: 1, origen: 'UIO', destino: 'GYE', fecha: '2031-11-10', hora: '08:30', horaLlegada: '09:25', precio: 45.0, asientosDisponibles: 30, activo: true),
+  Vuelo(id: 2, origen: 'UIO', destino: 'MAD', fecha: '2031-12-01', hora: '22:10', horaLlegada: '06:40', precio: 780.0, asientosDisponibles: 0, activo: true),
   Vuelo(id: 3, origen: 'GYE', destino: 'UIO', fecha: '2031-11-15', hora: '09:45', precio: 48.0, asientosDisponibles: 12, activo: true),
 ];
 

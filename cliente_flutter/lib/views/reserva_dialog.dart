@@ -203,7 +203,7 @@ class _ReservaDialogState extends State<ReservaDialog> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        '${vuelo.origen} → ${vuelo.destino} · ${vuelo.fecha} ${vuelo.hora} · \$${vuelo.precio.toStringAsFixed(2)} USD por pasajero',
+                        '${vuelo.origen} → ${vuelo.destino} · ${vuelo.fecha} ${vuelo.horario} · \$${vuelo.precio.toStringAsFixed(2)} USD por pasajero',
                         style: AppTheme.bodySm(color: AppColors.onSurfaceVariant).copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -391,7 +391,7 @@ class _DialogoPasajeroState extends State<_DialogoPasajero> {
                       children: [
                         Text('Datos del pasajero', style: AppTheme.headlineSm()),
                         Text(
-                          '${vuelo.origen} → ${vuelo.destino} · ${vuelo.fecha} · ${vuelo.hora} h',
+                          '${vuelo.origen} → ${vuelo.destino} · ${vuelo.fecha} · ${vuelo.horario} h',
                           style: AppTheme.bodySm(color: AppColors.onSurfaceVariant),
                         ),
                       ],
