@@ -50,7 +50,9 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
   String? _error;
   // Al crear: false deja el vuelo como borrador (valor por defecto).
   bool _publicar = false;
-
+  final DateTime _now = DateTime.now().add(
+    const Duration(hours: 2, minutes: 30)
+  );
   bool get _editando => widget.vuelo != null;
 
   @override
@@ -61,7 +63,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
     _origen = aeropuertos.containsKey(v?.origen) ? v!.origen : aeropuertos.keys.first;
     _destino = aeropuertos.containsKey(v?.destino) ? v!.destino : aeropuertos.keys.last;
     _fecha = TextEditingController(text: v?.fecha ?? '');
-    _hora = TextEditingController(text: v?.hora ?? '08:00');
+    _hora = TextEditingController(text: v?.hora ?? "${_now.hour.toString().padLeft(2,'0')}:${_now.minute.toString().padLeft(2,'0')}");
     _llegada = TextEditingController(text: v?.horaLlegada ?? '');
     _precio = TextEditingController(text: v == null ? '' : v.precio.toStringAsFixed(2));
     // Un vuelo puede tener un total que ya no es válido (por ejemplo 0 asientos): se parte de uno válido.
