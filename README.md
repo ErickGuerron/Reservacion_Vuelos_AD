@@ -24,6 +24,13 @@ Internal calls between services (not for clients): S3 `POST /api/internal/vuelos
 - **Cancel**: `DELETE /api/reservas/{id}` frees the seat in S3 before marking the reservation as cancelled. If S3 is down, the cancellation fails with 503 and the reservation stays confirmed.
 - Flights that existed before this change receive a seat map on startup, with as many seats as they had free, laid out in 6 columns (A to F).
 
+## Passenger document and invoice
+
+- **Document per passenger**: each seat of a purchase carries the document of the person who flies in it. `POST /api/reservas` and `POST /api/reservas/lote` accept `tipoDocumento` (`"cedula"` or `"pasaporte"`) and `documento` per passenger. Both go together or neither is sent. A cédula is validated as an Ecuadorian ID (10 digits, province 01-24 or 30, third digit below 6, check digit); a passport is 6-12 letters or digits. Invalid values return 400 and nothing is stored. Reservations made before this change keep both fields `null`. Existing databases get the two columns on startup; on Supabase run `supabase/004_documento_pasajero.sql`.
+- **Listing**: `GET /api/reservas` and the S4 responses include `tipoDocumento` and `documento`.
+- **Invoice XML** (`GET /api/reservas/lote/{id}/factura`): the existing fields are unchanged (`numero`, `fecha`, `cliente`, `pasajeros`, `subtotal`, `iva` at 15 %, `total`). After `total` it adds `<vuelo>` (origin, destination, date, time, when S3 answers) and `<boletos>` with one `<boleto>` per confirmed passenger (`pasajero`, `tipoDocumento`, `documento`, `asiento`, `precio`).
+- **Flutter client**: the invoice dialog shows the flight, one ticket per passenger and the IVA, and downloads the invoice as XML (as S5 returns it) or as PDF (built in the app with the `pdf` package; run `flutter pub get` after pulling).
+
 ## CORS for Flutter
 
 Browser clients can call every service from any `localhost` or `127.0.0.1` port. Flutter web picks a random port on each run, so the default is a regular expression (`CORS_ORIGIN_REGEX`) and not a fixed list. The explicit list `CORS_ORIGINS` still applies on top of it. Set `CORS_ORIGIN_REGEX` to an empty value to disable the regular expression.
