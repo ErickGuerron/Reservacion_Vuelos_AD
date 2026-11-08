@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/ruta.dart';
 import '../core/roles.dart';
+import '../core/services.dart';
 import '../core/session.dart';
 import '../theme/app_theme.dart';
 import '../views/acceso_view.dart';
@@ -43,6 +44,11 @@ class _AppShellState extends State<AppShell> {
   void _irA(Ruta ruta) => setState(() => _ruta = ruta);
 
   void _cerrarSesion() {
+    final token = session.token;
+    if (token != null) {
+      // Revoca el token en el servidor; si no responde, la sesión local se cierra igual.
+      AuthService.logout(token).catchError((_) {});
+    }
     session.cerrar();
     _irA(Ruta.login);
   }
@@ -63,7 +69,14 @@ class _AppShellState extends State<AppShell> {
             _irA(Ruta.reservas);
           },
         ),
-      Ruta.registro => AccesoView(vista: Ruta.registro, onCambiar: _irA, onSesionIniciada: () {}),
+      Ruta.registro => AccesoView(
+          vista: Ruta.registro,
+          onCambiar: _irA,
+          onSesionIniciada: () {
+            refrescarContador();
+            _irA(Ruta.reservas);
+          },
+        ),
     };
   }
 
@@ -138,12 +151,19 @@ class _Cabecera extends StatelessWidget {
           ],
           _Avatar(),
           const SizedBox(width: AppSpacing.sm),
-          if (session.activa)
+          // En pantallas estrechas el botón de salir solo muestra el icono (evita desbordar la cabecera).
+          if (session.activa && ancho >= 600)
             TextButton.icon(
               onPressed: onCerrarSesion,
               icon: const Icon(Icons.logout, size: 16),
               label: const Text('Cerrar sesión'),
               style: TextButton.styleFrom(foregroundColor: AppColors.onSurfaceVariant),
+            )
+          else if (session.activa)
+            IconButton(
+              tooltip: 'Cerrar sesión',
+              onPressed: onCerrarSesion,
+              icon: const Icon(Icons.logout, size: 20, color: AppColors.onSurfaceVariant),
             )
           else
             TextButton(
@@ -181,18 +201,21 @@ class _Logo extends StatelessWidget {
             decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
             child: const Icon(Icons.flight_takeoff, color: AppColors.onPrimary, size: 22),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('AeroVuelo', style: AppTheme.headlineSm().copyWith(height: 1, letterSpacing: -0.3)),
-              Text(
-                'SKY BOOKING SYSTEM',
-                style: AppTheme.telemetry(size: 10, weight: FontWeight.w700, color: AppColors.secondary).copyWith(letterSpacing: 1),
-              ),
-            ],
-          ),
+          // En móvil solo queda el icono: el nombre y el subtítulo harían que la cabecera supere el ancho de la pantalla.
+          if (MediaQuery.sizeOf(context).width >= 600) ...[
+            const SizedBox(width: AppSpacing.sm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('AeroVuelo', style: AppTheme.headlineSm().copyWith(height: 1, letterSpacing: -0.3)),
+                Text(
+                  'SKY BOOKING SYSTEM',
+                  style: AppTheme.telemetry(size: 10, weight: FontWeight.w700, color: AppColors.secondary).copyWith(letterSpacing: 1),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

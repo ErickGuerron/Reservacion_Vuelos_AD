@@ -35,7 +35,6 @@ class _VuelosViewState extends State<VuelosView> {
   Map<int, VueloAdmin> _gestion = {};
   String _contador = 'Consultando...';
   ({TipoAlerta tipo, String texto})? _alerta;
-  bool _tabla = false;
   bool _cargando = false;
 
   @override
@@ -219,10 +218,8 @@ class _VuelosViewState extends State<VuelosView> {
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(margen, 0, margen, AppSpacing.xl),
-          child: _Resultados(
+          child: ResultadosVuelos(
             vuelos: _vuelos,
-            tabla: _tabla,
-            onCambiarVista: (t) => setState(() => _tabla = t),
             onReservar: _reservar,
             acciones: Permisos(session.rol).puedeGestionarVuelos ? _accionesAdmin : null,
             onCrear: Permisos(session.rol).puedeCrearVuelos ? _crearVuelo : null,
@@ -267,7 +264,9 @@ class _Telemetria extends StatelessWidget {
                   children: [
                     Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
-                    Text('MICROSERVICIO S3 [:5003] ENLACE ACTIVO', style: AppTheme.telemetry(size: 12, weight: FontWeight.w700, color: AppColors.onSecondaryContainer)),
+                    Flexible(
+                      child: Text('MICROSERVICIO S3 [:5003] ENLACE ACTIVO', style: AppTheme.telemetry(size: 12, weight: FontWeight.w700, color: AppColors.onSecondaryContainer)),
+                    ),
                   ],
                 ),
               ),
@@ -481,7 +480,7 @@ class _Buscador extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  Text('GET /api/vuelos', style: AppTheme.telemetry(size: 12, color: AppColors.onSurfaceVariant)),
+                  Flexible(child: Text('GET /api/vuelos', style: AppTheme.telemetry(size: 12, color: AppColors.onSurfaceVariant))),
                 ],
               ),
               Container(
@@ -492,7 +491,7 @@ class _Buscador extends StatelessWidget {
                   children: [
                     Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
-                    Text(contador, style: AppTheme.labelMd()),
+                    Flexible(child: Text(contador, style: AppTheme.labelMd())),
                   ],
                 ),
               ),
@@ -562,19 +561,10 @@ class _Select extends StatelessWidget {
   }
 }
 
-class _Resultados extends StatelessWidget {
-  const _Resultados({
-    required this.vuelos,
-    required this.tabla,
-    required this.onCambiarVista,
-    required this.onReservar,
-    this.acciones,
-    this.onCrear,
-  });
+class ResultadosVuelos extends StatelessWidget {
+  const ResultadosVuelos({super.key, required this.vuelos, required this.onReservar, this.acciones, this.onCrear});
 
   final List<Vuelo> vuelos;
-  final bool tabla;
-  final ValueChanged<bool> onCambiarVista;
   final ValueChanged<Vuelo> onReservar;
   // Botones extra por vuelo (solo administrador).
   final Widget? Function(Vuelo vuelo)? acciones;
@@ -596,109 +586,41 @@ class _Resultados extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Vuelos Disponibles en Red AeroVuelo', style: AppTheme.headlineMd()),
-                Text('Datos sincronizados directamente desde el servicio S3 (:5003).', style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
+                Text('Vuelos disponibles', style: AppTheme.headlineMd()),
+                Text('Datos sincronizados con el servicio de vuelos (S3, :5003).', style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
               ],
             ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (onCrear != null) ...[
-                  FilledButton.icon(
-                    onPressed: onCrear,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: Text('Crear vuelo', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                ],
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: AppColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(12)),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _BotonVista(texto: 'Boletos de Abordaje', icono: Icons.style, activo: !tabla, onTap: () => onCambiarVista(false)),
-                      _BotonVista(texto: 'Consola Matricial', icono: Icons.table_rows, activo: tabla, onTap: () => onCambiarVista(true)),
-                    ],
-                  ),
+            if (onCrear != null)
+              FilledButton.icon(
+                onPressed: onCrear,
+                icon: const Icon(Icons.add, size: 18),
+                label: Text('Crear vuelo', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
                 ),
-              ],
-            ),
+              ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        if (tabla)
-          _TablaVuelos(vuelos: vuelos, onReservar: onReservar, acciones: acciones)
+        if (vuelos.isEmpty)
+          Text('No hay vuelos con esos filtros.', style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant))
         else
-          _ListaBoletos(vuelos: vuelos, onReservar: onReservar, acciones: acciones),
+          Column(
+            children: [
+              for (final vuelo in vuelos) ...[
+                _TarjetaBoleto(vuelo: vuelo, onReservar: () => onReservar(vuelo), acciones: acciones?.call(vuelo)),
+                const SizedBox(height: AppSpacing.md),
+              ],
+            ],
+          ),
       ],
     );
   }
 }
 
-class _BotonVista extends StatelessWidget {
-  const _BotonVista({required this.texto, required this.icono, required this.activo, required this.onTap});
-
-  final String texto;
-  final IconData icono;
-  final bool activo;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: activo ? AppColors.surfaceContainerLowest : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: activo ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 2)] : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icono, size: 18, color: activo ? AppColors.onSurface : AppColors.onSurfaceVariant),
-            const SizedBox(width: 6),
-            Text(
-              texto,
-              style: AppTheme.labelMd(color: activo ? AppColors.onSurface : AppColors.onSurfaceVariant).copyWith(fontWeight: activo ? FontWeight.w700 : FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ListaBoletos extends StatelessWidget {
-  const _ListaBoletos({required this.vuelos, required this.onReservar, this.acciones});
-
-  final List<Vuelo> vuelos;
-  final ValueChanged<Vuelo> onReservar;
-  final Widget? Function(Vuelo vuelo)? acciones;
-
-  @override
-  Widget build(BuildContext context) {
-    if (vuelos.isEmpty) {
-      return Text('No hay vuelos con esos filtros.', style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant));
-    }
-    return Column(
-      children: [
-        for (final vuelo in vuelos) ...[
-          _TarjetaBoleto(vuelo: vuelo, onReservar: () => onReservar(vuelo), acciones: acciones?.call(vuelo)),
-          const SizedBox(height: AppSpacing.md),
-        ],
-      ],
-    );
-  }
-}
-
+// Boleto de abordaje: cuerpo con el trayecto, línea punteada de corte y talón con tarifa y reserva.
+// En pantallas angostas el talón baja debajo del cuerpo, separado por la misma línea en horizontal.
 class _TarjetaBoleto extends StatelessWidget {
   const _TarjetaBoleto({required this.vuelo, required this.onReservar, this.acciones});
 
@@ -710,21 +632,19 @@ class _TarjetaBoleto extends StatelessWidget {
   Widget build(BuildContext context) {
     final agotado = vuelo.agotado;
     final ancho = MediaQuery.sizeOf(context).width;
-    final lateral = ancho >= 1024;
+    final lateral = ancho >= 720;
 
     final cuerpo = Padding(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: AppColors.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
-                child: Text('VUELO #${vuelo.id}', style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.onSurface)),
-              ),
-              const SizedBox(width: AppSpacing.sm),
+              Text('VUELO #${vuelo.id}', style: AppTheme.telemetry(size: 11, weight: FontWeight.w700, color: AppColors.onSurfaceVariant)),
               _InsigniaEstado(vuelo: vuelo),
             ],
           ),
@@ -732,33 +652,44 @@ class _TarjetaBoleto extends StatelessWidget {
           Row(
             children: [
               Expanded(child: _Ciudad(codigo: vuelo.origen, alineacion: CrossAxisAlignment.start)),
-              Expanded(child: _Trayecto(fecha: vuelo.fecha, hora: vuelo.hora)),
+              Expanded(flex: 2, child: _Trayecto(fecha: vuelo.fecha, hora: vuelo.hora)),
               Expanded(child: _Ciudad(codigo: vuelo.destino, alineacion: CrossAxisAlignment.end)),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(color: AppColors.surfaceContainerLow, borderRadius: BorderRadius.circular(8)),
-            child: Text(
-              agotado ? 'Sin asientos disponibles' : '${vuelo.asientosDisponibles} asientos disponibles',
-              style: AppTheme.bodySm(color: AppColors.onSurfaceVariant),
-            ),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              _Dato(icono: Icons.calendar_today_outlined, texto: vuelo.fecha),
+              _Dato(icono: Icons.schedule, texto: '${vuelo.hora} h'),
+              _Dato(
+                icono: Icons.event_seat_outlined,
+                texto: agotado ? 'Sin asientos' : '${vuelo.asientosDisponibles} libres',
+              ),
+            ],
           ),
         ],
       ),
     );
 
-    final precio = Container(
-      width: lateral ? 288 : double.infinity,
+    final talon = Container(
+      width: lateral ? 260 : double.infinity,
       padding: const EdgeInsets.all(AppSpacing.lg),
       color: AppColors.surfaceContainerLow,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('TARIFA POR PASAJERO', style: AppTheme.labelSm(color: AppColors.onSurfaceVariant).copyWith(letterSpacing: 1)),
-          Text('\$${vuelo.precio.toStringAsFixed(2)}', style: AppTheme.headlineXl().copyWith(fontSize: 40)),
-          Text('USD', style: AppTheme.telemetry(size: 11, color: AppColors.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '\$${vuelo.precio.toStringAsFixed(2)}', style: AppTheme.headlineLg().copyWith(fontWeight: FontWeight.w800)),
+                TextSpan(text: ' USD', style: AppTheme.telemetry(size: 12, color: AppColors.onSurfaceVariant)),
+              ],
+            ),
+          ),
           if (acciones != null) ...[
             const SizedBox(height: AppSpacing.md),
             acciones!,
@@ -766,19 +697,21 @@ class _TarjetaBoleto extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           if (Permisos(session.rol).puedeReservar)
             SizedBox(
-              width: double.infinity,
               height: 44,
               child: FilledButton(
                 onPressed: agotado || !vuelo.activo || vuelo.ventaCerrada ? null : onReservar,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                disabledBackgroundColor: AppColors.surfaceContainerHighest,
-                disabledForegroundColor: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  disabledBackgroundColor: AppColors.surfaceContainerHighest,
+                  disabledForegroundColor: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(
+                  agotado ? 'Agotado' : (vuelo.ventaCerrada ? 'Venta cerrada' : 'Reservar vuelo'),
+                  style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
-              child: Text(agotado ? 'Agotado' : (vuelo.ventaCerrada ? 'Venta cerrada' : 'Reservar vuelo'), style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
             ),
-          ),
         ],
       ),
     );
@@ -788,15 +721,91 @@ class _TarjetaBoleto extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 4))],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.surfaceVariant),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
         ),
         clipBehavior: Clip.antiAlias,
         child: lateral
             ? IntrinsicHeight(
-                child: Row(children: [Expanded(child: cuerpo), precio]),
+                child: Row(
+                  children: [
+                    Expanded(child: cuerpo),
+                    const _LineaCorte(vertical: true),
+                    talon,
+                  ],
+                ),
               )
-            : Column(children: [cuerpo, precio]),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [cuerpo, const _LineaCorte(vertical: false), talon],
+              ),
+      ),
+    );
+  }
+}
+
+// Línea de corte punteada entre el cuerpo y el talón del boleto.
+class _LineaCorte extends StatelessWidget {
+  const _LineaCorte({required this.vertical});
+
+  final bool vertical;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: vertical ? 1 : double.infinity,
+      height: vertical ? double.infinity : 1,
+      child: CustomPaint(painter: _PintorCorte(vertical: vertical)),
+    );
+  }
+}
+
+class _PintorCorte extends CustomPainter {
+  _PintorCorte({required this.vertical});
+
+  final bool vertical;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pincel = Paint()
+      ..color = AppColors.outline
+      ..strokeWidth = 1;
+    final largo = vertical ? size.height : size.width;
+    const trazo = 6.0;
+    const hueco = 4.0;
+    for (var pos = 0.0; pos < largo; pos += trazo + hueco) {
+      final fin = (pos + trazo).clamp(0.0, largo);
+      canvas.drawLine(
+        vertical ? Offset(0, pos) : Offset(pos, 0),
+        vertical ? Offset(0, fin) : Offset(fin, 0),
+        pincel,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PintorCorte antiguo) => antiguo.vertical != vertical;
+}
+
+class _Dato extends StatelessWidget {
+  const _Dato({required this.icono, required this.texto});
+
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: AppColors.surfaceContainerLow, borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: 14, color: AppColors.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(texto, style: AppTheme.labelMd(color: AppColors.onSurface)),
+        ],
       ),
     );
   }
@@ -811,10 +820,10 @@ class _InsigniaEstado extends StatelessWidget {
     final (texto, fondo, color) = !vuelo.activo
         ? ('BORRADOR', AppColors.surfaceContainerHigh, AppColors.onSurfaceVariant)
         : vuelo.asientosDisponibles == 0
-        ? ('AGOTADO', AppColors.errorContainer, AppColors.onErrorContainer)
-        : vuelo.asientosDisponibles <= _umbralUltimosCupos
-            ? ('ÚLTIMOS CUPOS', AppColors.tertiaryFixed, AppColors.onTertiaryFixed)
-            : ('DISPONIBLE', AppColors.surfaceContainerLow, AppColors.secondary);
+            ? ('AGOTADO', AppColors.errorContainer, AppColors.onErrorContainer)
+            : vuelo.asientosDisponibles <= _umbralUltimosCupos
+                ? ('ÚLTIMOS CUPOS', AppColors.tertiaryFixed, AppColors.onTertiaryFixed)
+                : ('DISPONIBLE', AppColors.secondaryFixed, AppColors.onSecondaryFixed);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(999)),
@@ -841,9 +850,10 @@ class _Ciudad extends StatelessWidget {
   }
 }
 
-// Trayecto directo: línea punteada con dos extremos y un avión centrado.
+// Trayecto: línea punteada con el avión al centro, entre origen y destino.
 class _Trayecto extends StatelessWidget {
   const _Trayecto({required this.fecha, required this.hora});
+
   final String fecha;
   final String hora;
 
@@ -851,101 +861,19 @@ class _Trayecto extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        SizedBox(
-          height: 40,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              LayoutBuilder(
-                builder: (_, c) {
-                  final puntos = (c.maxWidth / 12).floor();
-                  return Row(
-                    children: [
-                      for (var i = 0; i < puntos; i++)
-                        Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                            height: 2,
-                            color: i.isEven ? AppColors.secondary.withValues(alpha: 0.5) : Colors.transparent,
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: AppColors.secondary, width: 1.5)),
-                child: const Icon(Icons.flight, size: 18, color: AppColors.secondary),
-              ),
-            ],
-          ),
-        ),
-        Text('Salida $fecha · $hora', style: AppTheme.bodyMd(color: AppColors.onSurfaceVariant).copyWith(fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
-class _TablaVuelos extends StatelessWidget {
-  const _TablaVuelos({required this.vuelos, required this.onReservar, this.acciones});
-
-  final List<Vuelo> vuelos;
-  final ValueChanged<Vuelo> onReservar;
-  final Widget? Function(Vuelo vuelo)? acciones;
-
-  @override
-  Widget build(BuildContext context) {
-    final encabezado = AppTheme.labelMd(color: AppColors.onSurfaceVariant);
-    return Container(
-      decoration: BoxDecoration(color: AppColors.surfaceContainerLowest, borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowColor: WidgetStateProperty.all(AppColors.surfaceContainer),
-          columns: [
-            DataColumn(label: Text('ID', style: encabezado)),
-            DataColumn(label: Text('Ruta', style: encabezado)),
-            DataColumn(label: Text('Fecha y hora', style: encabezado)),
-            DataColumn(label: Text('Precio (USD)', style: encabezado)),
-            DataColumn(label: Text('Asientos', style: encabezado)),
-            DataColumn(label: Text('Acción', style: encabezado)),
+        Row(
+          children: [
+            const Expanded(child: _LineaCorte(vertical: false)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Icon(Icons.flight, size: 20, color: AppColors.secondary),
+            ),
+            const Expanded(child: _LineaCorte(vertical: false)),
           ],
-          rows: vuelos.isEmpty
-              ? [
-                  DataRow(cells: [
-                    DataCell(Text('No hay vuelos con esos filtros.', style: AppTheme.bodySm(color: AppColors.onSurfaceVariant))),
-                    for (var i = 0; i < 5; i++) const DataCell(SizedBox.shrink()),
-                  ]),
-                ]
-              : [
-                  for (final v in vuelos)
-                    DataRow(cells: [
-                      DataCell(Text('#${v.id}', style: AppTheme.telemetry(color: AppColors.onSurface, weight: FontWeight.w700))),
-                      DataCell(Text('${v.origen} → ${v.destino}', style: AppTheme.bodySm().copyWith(fontWeight: FontWeight.w700))),
-                      DataCell(Text('${v.fecha} · ${v.hora}', style: AppTheme.telemetry(color: AppColors.onSurface))),
-                      DataCell(Text('\$${v.precio.toStringAsFixed(2)}', style: AppTheme.bodySm().copyWith(fontWeight: FontWeight.w700))),
-                      DataCell(Text('${v.asientosDisponibles} libres', style: AppTheme.bodySm())),
-                      DataCell(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (Permisos(session.rol).puedeReservar)
-                              FilledButton(
-                                                                 onPressed: v.agotado || !v.activo || v.ventaCerrada ? null : () => onReservar(v),
-                              style: FilledButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                              child: Text(v.agotado ? 'Sin cupo' : (v.ventaCerrada ? 'Venta cerrada' : 'Reservar'),  style: AppTheme.labelMd(color: AppColors.onPrimary)),
-                            ),
-                            if (acciones?.call(v) case final accion?) ...[const SizedBox(width: 8), accion],
-                          ],
-                        ),
-                      ),
-                    ]),
-                ],
         ),
-      ),
+        const SizedBox(height: 4),
+        Text('$fecha · $hora', style: AppTheme.telemetry(size: 11, color: AppColors.onSurfaceVariant), textAlign: TextAlign.center),
+      ],
     );
   }
 }

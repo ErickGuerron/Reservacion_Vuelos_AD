@@ -34,7 +34,10 @@ class AccesoView extends StatelessWidget {
                   if (vista == Ruta.login)
                     LoginForm(onSesionIniciada: onSesionIniciada)
                   else
-                    const RegistroForm(),
+                    RegistroForm(
+                      onSesionIniciada: onSesionIniciada,
+                      onIrALogin: () => onCambiar(Ruta.login),
+                    ),
                 ],
               ),
             ),
@@ -150,10 +153,14 @@ class _Pestana extends StatelessWidget {
             children: [
               Icon(icono, size: 18, color: activa ? AppColors.slate900 : AppColors.slate600),
               const SizedBox(width: 8),
-              Text(
-                texto,
-                style: AppTheme.bodySm(color: activa ? AppColors.slate900 : AppColors.slate600)
-                    .copyWith(fontWeight: activa ? FontWeight.w600 : FontWeight.w500),
+              Flexible(
+                child: Text(
+                  texto,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: AppTheme.bodySm(color: activa ? AppColors.slate900 : AppColors.slate600)
+                      .copyWith(fontWeight: activa ? FontWeight.w600 : FontWeight.w500),
+                ),
               ),
             ],
           ),
@@ -188,12 +195,14 @@ class PanelHero extends StatelessWidget {
                 child: const Icon(Icons.flight_takeoff, color: Colors.white, size: 24),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('AeroVuelo', style: AppTheme.headlineSm(color: Colors.white).copyWith(fontWeight: FontWeight.w800, height: 1)),
-                  Text('Portal Global de Pasajeros', style: AppTheme.labelSm(color: AppColors.slate400)),
-                ],
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('AeroVuelo', style: AppTheme.headlineSm(color: Colors.white).copyWith(fontWeight: FontWeight.w800, height: 1)),
+                    Text('Portal Global de Pasajeros', style: AppTheme.labelSm(color: AppColors.slate400)),
+                  ],
+                ),
               ),
             ],
           ),

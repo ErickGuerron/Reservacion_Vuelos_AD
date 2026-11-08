@@ -44,6 +44,18 @@ class Session extends ChangeNotifier {
     _token = null;
     notifyListeners();
   }
+
+  // Aviso de un solo uso para la siguiente pantalla (p. ej. "cuenta creada, inicia sesión").
+  String? _aviso;
+
+  void avisar(String texto) => _aviso = texto;
+
+  // Devuelve el aviso pendiente y lo borra: se muestra una sola vez.
+  String? tomarAviso() {
+    final aviso = _aviso;
+    _aviso = null;
+    return aviso;
+  }
 }
 
 final session = Session();

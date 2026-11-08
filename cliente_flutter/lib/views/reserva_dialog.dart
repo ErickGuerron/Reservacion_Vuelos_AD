@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/api_client.dart';
 import '../core/app_state.dart';
+import '../core/lotes.dart';
 import '../core/models.dart';
 import '../core/services.dart';
 import '../core/validadores.dart';
@@ -9,6 +10,9 @@ import '../theme/app_theme.dart';
 import 'mapa_asientos.dart';
 
 enum _Estado { listo, enviando, ok, error }
+
+// Lo que se pide por cada asiento: quién viaja y su documento.
+typedef _Pasajero = ({String nombre, String tipo, String documento});
 
 // Modal de reserva: el pasajero elige asientos del mapa real de S3 y da el nombre de cada uno.
 // Cada asiento se envía en POST /api/reservas (S4). Si otro pasajero lo tomó primero (409), se quita y se avisa.
@@ -28,6 +32,8 @@ class _ReservaDialogState extends State<ReservaDialog> {
   bool _cargandoMapa = true;
   // Nombre de cada asiento que este cliente tiene elegido o ya confirmó.
   final Map<String, String> _nombres = {};
+  // Documento de cada asiento elegido (tipo 'cedula' o 'pasaporte' y su número).
+  final Map<String, ({String tipo, String numero})> _documentos = {};
   final Set<String> _creados = {};
   final List<Reserva> _reservas = [];
   _Estado _estado = _Estado.listo;
@@ -69,6 +75,7 @@ class _ReservaDialogState extends State<ReservaDialog> {
         } else if (a.estado == EstadoAsiento.reservado) {
           perdidos.add(a.codigo);
           _nombres.remove(a.codigo);
+          _documentos.remove(a.codigo);
         } else {
           a.estado = EstadoAsiento.seleccionado;
           a.nombre = nombre;
@@ -101,19 +108,21 @@ class _ReservaDialogState extends State<ReservaDialog> {
         a.estado = EstadoAsiento.disponible;
         a.nombre = null;
         _nombres.remove(a.codigo);
+        _documentos.remove(a.codigo);
       });
       return;
     }
 
-    final nombre = await showDialog<String>(
+    final pasajero = await showDialog<_Pasajero>(
       context: context,
-      builder: (_) => _DialogoNombre(codigo: a.codigo),
+      builder: (_) => _DialogoPasajero(codigo: a.codigo, vuelo: widget.vuelo),
     );
-    if (nombre == null || !mounted) return;
+    if (pasajero == null || !mounted) return;
     setState(() {
       a.estado = EstadoAsiento.seleccionado;
-      a.nombre = nombre;
-      _nombres[a.codigo] = nombre;
+      a.nombre = pasajero.nombre;
+      _nombres[a.codigo] = pasajero.nombre;
+      _documentos[a.codigo] = (tipo: pasajero.tipo, numero: pasajero.documento);
     });
   }
 
@@ -127,7 +136,15 @@ class _ReservaDialogState extends State<ReservaDialog> {
     try {
       final reservas = await ReservasService.crearLote(
         vueloId: widget.vuelo.id,
-        reservas: [for (final a in pendientes) (pasajero: a.nombre!, asiento: a.codigo)],
+        reservas: [
+          for (final a in pendientes)
+            (
+              pasajero: a.nombre!,
+              asiento: a.codigo,
+              tipoDocumento: _documentos[a.codigo]!.tipo,
+              documento: _documentos[a.codigo]!.numero,
+            ),
+        ],
         token: widget.token,
       );
       if (!mounted) return;
@@ -300,51 +317,215 @@ class _ReservaDialogState extends State<ReservaDialog> {
   }
 }
 
-// Pide el nombre del propietario o reservante de un asiento.
-class _DialogoNombre extends StatefulWidget {
-  const _DialogoNombre({required this.codigo});
+// Datos de quien viaja en un asiento: nombre y documento (cédula o pasaporte). El boleto sale a su nombre.
+class _DialogoPasajero extends StatefulWidget {
+  const _DialogoPasajero({required this.codigo, required this.vuelo});
 
   final String codigo;
+  final Vuelo vuelo;
 
   @override
-  State<_DialogoNombre> createState() => _DialogoNombreState();
+  State<_DialogoPasajero> createState() => _DialogoPasajeroState();
 }
 
-class _DialogoNombreState extends State<_DialogoNombre> {
+class _DialogoPasajeroState extends State<_DialogoPasajero> {
   final _nombre = TextEditingController();
+  final _documento = TextEditingController();
   final _form = GlobalKey<FormState>();
+  String _tipo = 'cedula';
+
+  bool get _cedula => _tipo == 'cedula';
 
   @override
   void dispose() {
     _nombre.dispose();
+    _documento.dispose();
     super.dispose();
   }
 
   void _aceptar() {
     if (!_form.currentState!.validate()) return;
-    Navigator.of(context).pop(_nombre.text.trim().replaceAll(RegExp(r'\s+'), ' '));
+    Navigator.of(context).pop<_Pasajero>((
+      nombre: _nombre.text.trim().replaceAll(RegExp(r'\s+'), ' '),
+      tipo: _tipo,
+      documento: _documento.text.trim().toUpperCase(),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Asiento ${widget.codigo}', style: AppTheme.headlineSm()),
-      content: Form(
-        key: _form,
-        child: TextFormField(
-          controller: _nombre,
-          autofocus: true,
-          maxLength: 40,
-          decoration: const InputDecoration(labelText: 'Nombre y apellido del pasajero', hintText: 'Ej. María Gómez'),
-          inputFormatters: [NombrePersonaFormatter()],
-          validator: validarNombrePasajero,
-          onFieldSubmitted: (_) => _aceptar(),
+    final vuelo = widget.vuelo;
+    final iva = calcularIva(vuelo.precio);
+    return Dialog(
+      backgroundColor: AppColors.surfaceContainerLowest,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              color: AppColors.surfaceContainerLow,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              child: Row(
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 56),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(color: AppColors.slate900, borderRadius: BorderRadius.circular(14)),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('ASIENTO', style: AppTheme.telemetry(size: 9, color: AppColors.slate300)),
+                        Text(widget.codigo, style: AppTheme.telemetry(size: 22, weight: FontWeight.w700, color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Datos del pasajero', style: AppTheme.headlineSm()),
+                        Text(
+                          '${vuelo.origen} → ${vuelo.destino} · ${vuelo.fecha} · ${vuelo.hora} h',
+                          style: AppTheme.bodySm(color: AppColors.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(tooltip: 'Cerrar', onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close)),
+                ],
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Form(
+                  key: _form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(color: AppColors.secondaryFixed, borderRadius: BorderRadius.circular(12)),
+                        child: Text(
+                          'El boleto sale a nombre de quien viaja en este asiento. Estos datos se verifican al abordar.',
+                          style: AppTheme.bodySm(color: AppColors.onSecondaryFixed),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      TextFormField(
+                        controller: _nombre,
+                        autofocus: true,
+                        maxLength: 40,
+                        textInputAction: TextInputAction.next,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        decoration: const InputDecoration(labelText: 'Nombre y apellido (como en el documento)', hintText: 'Ej. María Gómez'),
+                        inputFormatters: [NombrePersonaFormatter()],
+                        validator: validarNombrePasajero,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text('Tipo de documento', style: AppTheme.labelLg()),
+                      const SizedBox(height: AppSpacing.xs),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'cedula', label: Text('Cédula')),
+                          ButtonSegment(value: 'pasaporte', label: Text('Pasaporte')),
+                        ],
+                        selected: {_tipo},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (valor) => setState(() {
+                          _tipo = valor.first;
+                          _documento.clear();
+                        }),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      TextFormField(
+                        controller: _documento,
+                        maxLength: _cedula ? 10 : 12,
+                        keyboardType: _cedula ? TextInputType.number : TextInputType.text,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        decoration: InputDecoration(
+                          labelText: _cedula ? 'Número de cédula' : 'Número de pasaporte',
+                          hintText: _cedula ? '0000000000' : 'AB123456',
+                          helperText: _cedula ? 'Cédula ecuatoriana de 10 dígitos.' : 'Entre 6 y 12 letras o dígitos.',
+                        ),
+                        inputFormatters: [DocumentoFormatter(cedula: _cedula)],
+                        validator: (valor) => validarDocumento(_tipo, valor),
+                        onFieldSubmitted: (_) => _aceptar(),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(border: Border.all(color: AppColors.surfaceVariant), borderRadius: BorderRadius.circular(12)),
+                        child: Column(
+                          children: [
+                            _FilaPrecio('Tarifa del boleto', '\$${vuelo.precio.toStringAsFixed(2)}'),
+                            _FilaPrecio('IVA $ivaPorcentaje %', '\$${iva.toStringAsFixed(2)}'),
+                            const Divider(height: AppSpacing.md),
+                            _FilaPrecio('Total por pasajero', '\$${(vuelo.precio + iva).toStringAsFixed(2)}', destacada: true),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              color: AppColors.surfaceContainerLow,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary, width: 1.5),
+                      minimumSize: const Size(0, 48),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    onPressed: _aceptar,
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary, minimumSize: const Size(0, 48)),
+                    child: const Text('Guardar pasajero'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
-        FilledButton(onPressed: _aceptar, child: const Text('Confirmar')),
-      ],
+    );
+  }
+}
+
+class _FilaPrecio extends StatelessWidget {
+  const _FilaPrecio(this.etiqueta, this.valor, {this.destacada = false});
+
+  final String etiqueta;
+  final String valor;
+  final bool destacada;
+
+  @override
+  Widget build(BuildContext context) {
+    final estilo = destacada ? AppTheme.bodyMd().copyWith(fontWeight: FontWeight.w700) : AppTheme.bodySm(color: AppColors.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(child: Text(etiqueta, style: estilo)),
+          Text(valor, style: destacada ? AppTheme.headlineSm().copyWith(fontWeight: FontWeight.w800) : estilo.copyWith(fontWeight: FontWeight.w700)),
+        ],
+      ),
     );
   }
 }

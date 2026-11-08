@@ -17,6 +17,15 @@ class AuthService {
     }
     return (respuesta.cuerpo as Map)['token'] as String;
   }
+
+  // POST /api/auth/logout (S2): revoca el token en el servidor. El cliente cierra su sesión aunque falle.
+  static Future<void> logout(String token) async {
+    await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.autenticacion}/api/auth/logout'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+    );
+  }
 }
 
 class UsuariosService {
@@ -73,13 +82,29 @@ class VuelosService {
   }
 }
 
+class FacturasService {
+  // GET /api/reservas/lote/{id}/factura (S5). Devuelve el XML tal cual lo genera el servicio.
+  static Future<String> obtener({required int loteId, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'GET',
+      Uri.parse('${ApiConfig.gestion}/api/reservas/lote/$loteId/factura'),
+      cabeceras: {'Authorization': 'Bearer $token', 'Accept': 'application/xml'},
+    );
+    if (respuesta.status == 401) throw SesionExpirada();
+    if (!respuesta.ok || respuesta.cuerpo is! String) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo generar la factura.', status: respuesta.status);
+    }
+    return respuesta.cuerpo as String;
+  }
+}
+
 class ReservasService {
   // POST /api/reservas (S4). Devuelve la reserva creada.
   // POST /api/reservas/lote (S4): reserva todos los asientos o ninguno.
   // Si alguno ya está ocupado, el servidor responde 409 y no guarda nada; el status viene en la excepción.
   static Future<List<Reserva>> crearLote({
     required int vueloId,
-    required List<({String pasajero, String asiento})> reservas,
+    required List<({String pasajero, String asiento, String tipoDocumento, String documento})> reservas,
     required String token,
   }) async {
     final respuesta = await ApiClient.enviar(
@@ -88,7 +113,10 @@ class ReservasService {
       cabeceras: {'Authorization': 'Bearer $token'},
       cuerpo: {
         'vueloId': vueloId,
-        'reservas': [for (final r in reservas) {'pasajero': r.pasajero, 'asiento': r.asiento}],
+        'reservas': [
+          for (final r in reservas)
+            {'pasajero': r.pasajero, 'asiento': r.asiento, 'tipoDocumento': r.tipoDocumento, 'documento': r.documento},
+        ],
       },
     );
     if (respuesta.status != 201) {

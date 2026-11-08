@@ -88,15 +88,39 @@ class VueloAdmin {
 }
 
 class Reserva {
-  const Reserva({required this.id, required this.vueloId, required this.pasajero, required this.estado, this.asiento});
+  const Reserva({
+    required this.id,
+    required this.vueloId,
+    required this.pasajero,
+    required this.estado,
+    this.asiento,
+    this.loteId,
+    this.precio,
+    this.tipoDocumento,
+    this.documento,
+  });
 
   final int id;
   final int vueloId;
   final String pasajero;
   final String estado;
   final String? asiento;
+  // Reservas de una misma compra comparten loteId. Null = reserva anterior al lote.
+  final int? loteId;
+  // Precio por asiento al momento de reservar. Null = reserva anterior al lote.
+  final double? precio;
+  // Documento de quien viaja: 'cedula' o 'pasaporte'. Null = reserva anterior a este dato.
+  final String? tipoDocumento;
+  final String? documento;
 
   bool get confirmada => estado == 'confirmada';
+
+  // "Cédula 1710034065" o "Pasaporte AB123456". Null si la reserva no guardó documento.
+  String? get documentoEtiqueta {
+    final numero = documento;
+    if (numero == null || numero.isEmpty) return null;
+    return '${tipoDocumento == 'pasaporte' ? 'Pasaporte' : 'Cédula'} $numero';
+  }
 
   factory Reserva.fromJson(Map<String, dynamic> json) => Reserva(
         id: (json['id'] as num).toInt(),
@@ -104,5 +128,9 @@ class Reserva {
         pasajero: json['pasajero'] as String? ?? '',
         estado: json['estado'] as String? ?? '',
         asiento: json['asiento'] as String?,
+        loteId: (json['loteId'] as num?)?.toInt(),
+        precio: (json['precio'] as num?)?.toDouble(),
+        tipoDocumento: json['tipoDocumento'] as String?,
+        documento: json['documento'] as String?,
       );
 }
