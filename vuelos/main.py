@@ -6,7 +6,7 @@ Internal (S4, S5):     POST /api/internal/vuelos/{id}/asientos/reservar,
                        POST /api/internal/reservas/{id}/liberar
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Query, status
 from pydantic import BaseModel, Field, field_validator
@@ -15,22 +15,47 @@ from shared.asientos import MAX_ASIENTOS, MIN_ASIENTOS, generar_asientos_para_to
 from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
-from shared.models import VUELO_ACTIVO_DDL, AsientoVuelo, Base, Vuelo
+from shared.horarios import FRANJAS, estimar, franja_de, validar_horario
+from shared.models import VUELO_ACTIVO_DDL, VUELO_HORA_DDL, VUELO_HORA_LLEGADA_DDL, AsientoVuelo, Base, Vuelo
 from shared.security import current_admin_email
 from shared.validacion import validar_iata, validar_solo_numero
 
 engine, SessionLocal = session_factory("vuelos")
 create_tables(engine, Base, [Vuelo.__table__, AsientoVuelo.__table__])
 add_column_if_missing(engine, "vuelos", "activo", VUELO_ACTIVO_DDL)
+add_column_if_missing(engine, "vuelos", "hora", VUELO_HORA_DDL)
+add_column_if_missing(engine, "vuelos", "hora_llegada", VUELO_HORA_LLEGADA_DDL)
+
+# Hora de salida en 24 horas, HH:MM.
+HORA_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 SEED_FLIGHTS = [
-    {"origen": "UIO", "destino": "GYE", "fecha": date(2026, 11, 10), "precio": 45.0, "asientos_disponibles": 30},
-    {"origen": "UIO", "destino": "GYE", "fecha": date(2026, 11, 12), "precio": 52.5, "asientos_disponibles": 0},
-    {"origen": "GYE", "destino": "UIO", "fecha": date(2026, 11, 15), "precio": 48.0, "asientos_disponibles": 12},
-    {"origen": "UIO", "destino": "MAD", "fecha": date(2026, 12, 1), "precio": 780.0, "asientos_disponibles": 5},
+    {"origen": "UIO", "destino": "GYE", "fecha": date(2026, 11, 10), "hora": "08:30", "precio": 45.0, "asientos_disponibles": 30},
+    {"origen": "UIO", "destino": "GYE", "fecha": date(2026, 11, 12), "hora": "14:15", "precio": 52.5, "asientos_disponibles": 0},
+    {"origen": "GYE", "destino": "UIO", "fecha": date(2026, 11, 15), "hora": "09:45", "precio": 48.0, "asientos_disponibles": 12},
+    {"origen": "UIO", "destino": "MAD", "fecha": date(2026, 12, 1), "hora": "22:10", "precio": 780.0, "asientos_disponibles": 5},
 ]
 
 _INTENTOS_ASIENTO_LIBRE = 5
+
+# Corte de venta: no se reserva un vuelo que sale en menos de 3 horas.
+# Horario de Ecuador (UTC-5, sin horario de verano).
+ZONA_HORARIA_VENTA = timezone(timedelta(hours=-5))
+ANTICIPACION_MINIMA_RESERVA = timedelta(hours=3)
+
+
+def _ahora_venta() -> datetime:
+    return datetime.now(ZONA_HORARIA_VENTA)
+
+
+def _salida(vuelo: Vuelo) -> datetime:
+    horas, minutos = (int(parte) for parte in vuelo.hora.split(":"))
+    return datetime(vuelo.fecha.year, vuelo.fecha.month, vuelo.fecha.day, horas, minutos, tzinfo=ZONA_HORARIA_VENTA)
+
+
+def _validar_ventana_reserva(vuelo: Vuelo) -> None:
+    if _salida(vuelo) - _ahora_venta() < ANTICIPACION_MINIMA_RESERVA:
+        raise ApiError(409, "RESERVA_CERRADA", "La venta de este vuelo cerró 3 horas antes de la salida.")
 
 
 def _asegurar_asientos(db) -> None:
@@ -66,6 +91,8 @@ class VueloOut(BaseModel):
     origen: str
     destino: str
     fecha: date
+    hora: str
+    horaLlegada: str | None = None
     precio: float
     asientosDisponibles: int
 
@@ -74,6 +101,12 @@ class VueloAdminIn(BaseModel):
     origen: str = Field(description="Código IATA de 3 letras")
     destino: str = Field(description="Código IATA de 3 letras")
     fecha: date
+    hora: str = Field(default="08:00", pattern=HORA_PATTERN, description="Hora de salida HH:MM (24 horas)")
+    horaLlegada: str | None = Field(
+        default=None,
+        pattern=HORA_PATTERN,
+        description="Hora estimada de llegada HH:MM (24 horas). Opcional.",
+    )
     precio: float = Field(gt=0, le=100_000)
     totalAsientos: int = Field(
         ge=MIN_ASIENTOS,
@@ -131,6 +164,8 @@ def _to_dict(vuelo: Vuelo) -> dict:
         "origen": vuelo.origen,
         "destino": vuelo.destino,
         "fecha": vuelo.fecha.isoformat(),
+        "hora": vuelo.hora,
+        "horaLlegada": vuelo.hora_llegada,
         "precio": vuelo.precio,
         "asientosDisponibles": vuelo.asientos_disponibles,
         "activo": bool(vuelo.activo),
@@ -166,6 +201,11 @@ def buscar_vuelos(
     origen: str | None = Query(default=None, pattern=r"^[A-Za-z]{3}$"),
     destino: str | None = Query(default=None, pattern=r"^[A-Za-z]{3}$"),
     fecha: date | None = None,
+    franja: str | None = Query(
+        default=None,
+        pattern="^(" + "|".join(FRANJAS) + ")$",
+        description="Franja de la hora de salida: madrugada 00-06, manana 06-12, tarde 12-18, noche 18-24",
+    ),
 ):
     with SessionLocal() as db:
         query = db.query(Vuelo).filter(Vuelo.activo == True)  # noqa: E712 (SQL Server BIT)
@@ -175,7 +215,39 @@ def buscar_vuelos(
             query = query.filter(Vuelo.destino == destino.upper())
         if fecha:
             query = query.filter(Vuelo.fecha == fecha)
-        return [_to_dict(v) for v in query.order_by(Vuelo.id).all()]
+        vuelos = query.order_by(Vuelo.id).all()
+        if franja:
+            vuelos = [v for v in vuelos if franja_de(v.hora) == franja]
+        return [_to_dict(v) for v in vuelos]
+
+
+class EstimacionOut(BaseModel):
+    duracionHabitual: int = Field(description="Minutos de vuelo habituales de la ruta")
+    duracionMinima: int
+    duracionMaxima: int
+    horaLlegadaSugerida: str = Field(description="HH:MM en la hora local del destino")
+    duracionIndicada: int | None = None
+    valida: bool | None = Field(default=None, description="Solo si se envía horaLlegada")
+    mensaje: str | None = None
+
+
+@app.get(
+    "/api/vuelos/estimacion",
+    response_model=EstimacionOut,
+    responses=errores(400, 404),
+    summary="Duración habitual de una ruta y llegada sugerida para una salida",
+)
+def estimar_vuelo(
+    origen: str = Query(pattern=r"^[A-Za-z]{3}$"),
+    destino: str = Query(pattern=r"^[A-Za-z]{3}$"),
+    fecha: date = Query(),
+    hora: str = Query(pattern=HORA_PATTERN),
+    horaLlegada: str | None = Query(default=None, pattern=HORA_PATTERN),
+):
+    estimacion = estimar(origen.upper(), destino.upper(), fecha, hora, horaLlegada)
+    if estimacion is None:
+        raise ApiError(404, "RUTA_SIN_ESTIMACION", "No hay una duración habitual registrada para esa ruta.")
+    return estimacion
 
 
 @app.get(
@@ -227,8 +299,11 @@ def crear_vuelo(datos: VueloAdminIn, _: str = Depends(current_admin_email)):
     origen, destino = datos.origen.upper(), datos.destino.upper()
     if origen == destino:
         raise ApiError(400, "DATOS_INVALIDOS", "El origen y el destino deben ser distintos.")
-    if datos.fecha < date.today():
-        raise ApiError(400, "DATOS_INVALIDOS", "La fecha del vuelo no puede estar en el pasado.")
+    if datos.fecha <= date.today():
+        raise ApiError(400, "DATOS_INVALIDOS", "El vuelo debe programarse desde mañana en adelante.")
+    motivo = validar_horario(origen, destino, datos.fecha, datos.hora, datos.horaLlegada)
+    if motivo:
+        raise ApiError(400, "DATOS_INVALIDOS", motivo)
     motivo = validar_total_asientos(datos.totalAsientos)
     if motivo:
         raise ApiError(400, "DATOS_INVALIDOS", motivo)
@@ -238,6 +313,8 @@ def crear_vuelo(datos: VueloAdminIn, _: str = Depends(current_admin_email)):
             origen=origen,
             destino=destino,
             fecha=datos.fecha,
+            hora=datos.hora,
+            hora_llegada=datos.horaLlegada,
             precio=datos.precio,
             asientos_disponibles=datos.totalAsientos,
             activo=datos.activo,
@@ -255,6 +332,8 @@ class VueloAdminOut(BaseModel):
     origen: str
     destino: str
     fecha: date
+    hora: str
+    horaLlegada: str | None = None
     precio: float
     totalAsientos: int
     asientosDisponibles: int
@@ -275,6 +354,8 @@ def _admin_dict(db, vuelo: Vuelo) -> dict:
         "origen": vuelo.origen,
         "destino": vuelo.destino,
         "fecha": vuelo.fecha,
+        "hora": vuelo.hora,
+        "horaLlegada": vuelo.hora_llegada,
         "precio": vuelo.precio,
         "totalAsientos": total,
         "asientosDisponibles": vuelo.asientos_disponibles,
@@ -305,8 +386,11 @@ def editar_vuelo(vuelo_id: int, datos: VueloAdminIn, _: str = Depends(current_ad
     origen, destino = datos.origen.upper(), datos.destino.upper()
     if origen == destino:
         raise ApiError(400, "DATOS_INVALIDOS", "El origen y el destino deben ser distintos.")
-    if datos.fecha < date.today():
-        raise ApiError(400, "DATOS_INVALIDOS", "La fecha del vuelo no puede estar en el pasado.")
+    if datos.fecha <= date.today():
+        raise ApiError(400, "DATOS_INVALIDOS", "El vuelo debe programarse desde mañana en adelante.")
+    motivo = validar_horario(origen, destino, datos.fecha, datos.hora, datos.horaLlegada)
+    if motivo:
+        raise ApiError(400, "DATOS_INVALIDOS", motivo)
     motivo = validar_total_asientos(datos.totalAsientos)
     if motivo:
         raise ApiError(400, "DATOS_INVALIDOS", motivo)
@@ -315,7 +399,8 @@ def editar_vuelo(vuelo_id: int, datos: VueloAdminIn, _: str = Depends(current_ad
         vuelo = _flight_or_404(db, vuelo_id)
         if _ocupados(db, vuelo_id) > 0:
             raise ApiError(409, "VUELO_CON_RESERVAS", "El vuelo tiene reservas y no puede editarse.")
-        vuelo.origen, vuelo.destino, vuelo.fecha, vuelo.precio = origen, destino, datos.fecha, datos.precio
+        vuelo.origen, vuelo.destino, vuelo.fecha, vuelo.hora, vuelo.precio = origen, destino, datos.fecha, datos.hora, datos.precio
+        vuelo.hora_llegada = datos.horaLlegada
         total_actual = db.query(AsientoVuelo).filter(AsientoVuelo.vuelo_id == vuelo_id).count()
         if total_actual != datos.totalAsientos:
             # Sin reservas no hay asientos tomados: se rehace el mapa con el nuevo total.
@@ -408,7 +493,10 @@ def _tomar_asiento(db, vuelo_id: int, reserva_id: int, codigo: str | None) -> st
 def reservar_asiento(vuelo_id: int, datos: ReservarAsientoIn):
     codigo = (datos.asiento or "").strip().upper() or None
     with SessionLocal() as db:
-        _flight_or_404(db, vuelo_id)
+        vuelo = _flight_or_404(db, vuelo_id)
+        if not vuelo.activo:
+            raise ApiError(409, "VUELO_INACTIVO", "El vuelo no está disponible para reservas.")
+        _validar_ventana_reserva(vuelo)
         _descontar_disponible(db, vuelo_id)
         asiento = _tomar_asiento(db, vuelo_id, datos.reservaId, codigo)
         db.commit()
@@ -448,6 +536,7 @@ def reservar_lote(vuelo_id: int, datos: LoteIn):
         vuelo = _flight_or_404(db, vuelo_id)
         if not vuelo.activo:
             raise ApiError(409, "VUELO_INACTIVO", "El vuelo no está disponible para reservas.")
+        _validar_ventana_reserva(vuelo)
         _descontar_disponibles(db, vuelo_id, len(datos.reservas))
         asignados = []
         for item in datos.reservas:

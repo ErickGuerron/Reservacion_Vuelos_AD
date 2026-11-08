@@ -1,5 +1,6 @@
 import 'api_client.dart';
 import 'api_config.dart';
+import 'horarios.dart';
 import 'models.dart';
 
 // Servicios REST, uno por microservicio. Misma forma de llamada que los componentes web.
@@ -16,6 +17,15 @@ class AuthService {
       throw ApiException(respuesta.mensaje ?? 'No se pudo iniciar sesión.');
     }
     return (respuesta.cuerpo as Map)['token'] as String;
+  }
+
+  // POST /api/auth/logout (S2): revoca el token en el servidor. El cliente cierra su sesión aunque falle.
+  static Future<void> logout(String token) async {
+    await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.autenticacion}/api/auth/logout'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+    );
   }
 }
 
@@ -51,6 +61,33 @@ class VuelosService {
     return (respuesta.cuerpo as List).map((v) => Vuelo.fromJson(v as Map<String, dynamic>)).toList();
   }
 
+  // GET /api/vuelos/estimacion (S3): duración habitual de la ruta y llegada sugerida. Es una ayuda: si el
+  // servicio no responde o la ruta no tiene datos, devuelve null y el formulario sigue sin la estimación.
+  static Future<EstimacionVuelo?> estimacion({
+    required String origen,
+    required String destino,
+    required String fecha,
+    required String hora,
+    String? horaLlegada,
+  }) async {
+    try {
+      final respuesta = await ApiClient.enviar(
+        'GET',
+        Uri.parse('${ApiConfig.vuelos}/api/vuelos/estimacion').replace(queryParameters: {
+          'origen': origen,
+          'destino': destino,
+          'fecha': fecha,
+          'hora': hora,
+          if (horaLlegada != null) 'horaLlegada': horaLlegada,
+        }),
+      );
+      if (!respuesta.ok) return null;
+      return EstimacionVuelo.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // GET /api/vuelos/{id}/asientos (S3): disponibilidad real de cada asiento.
   static Future<List<AsientoRemoto>> mapa(int vueloId) async {
     final respuesta = await ApiClient.enviar('GET', Uri.parse('${ApiConfig.vuelos}/api/vuelos/$vueloId/asientos'));
@@ -73,13 +110,29 @@ class VuelosService {
   }
 }
 
+class FacturasService {
+  // GET /api/reservas/lote/{id}/factura (S5). Devuelve el XML tal cual lo genera el servicio.
+  static Future<String> obtener({required int loteId, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'GET',
+      Uri.parse('${ApiConfig.gestion}/api/reservas/lote/$loteId/factura'),
+      cabeceras: {'Authorization': 'Bearer $token', 'Accept': 'application/xml'},
+    );
+    if (respuesta.status == 401) throw SesionExpirada();
+    if (!respuesta.ok || respuesta.cuerpo is! String) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo generar la factura.', status: respuesta.status);
+    }
+    return respuesta.cuerpo as String;
+  }
+}
+
 class ReservasService {
   // POST /api/reservas (S4). Devuelve la reserva creada.
   // POST /api/reservas/lote (S4): reserva todos los asientos o ninguno.
   // Si alguno ya está ocupado, el servidor responde 409 y no guarda nada; el status viene en la excepción.
   static Future<List<Reserva>> crearLote({
     required int vueloId,
-    required List<({String pasajero, String asiento})> reservas,
+    required List<({String pasajero, String asiento, String tipoDocumento, String documento})> reservas,
     required String token,
   }) async {
     final respuesta = await ApiClient.enviar(
@@ -88,7 +141,10 @@ class ReservasService {
       cabeceras: {'Authorization': 'Bearer $token'},
       cuerpo: {
         'vueloId': vueloId,
-        'reservas': [for (final r in reservas) {'pasajero': r.pasajero, 'asiento': r.asiento}],
+        'reservas': [
+          for (final r in reservas)
+            {'pasajero': r.pasajero, 'asiento': r.asiento, 'tipoDocumento': r.tipoDocumento, 'documento': r.documento},
+        ],
       },
     );
     if (respuesta.status != 201) {
@@ -147,6 +203,7 @@ class AdminService {
     required String destino,
     required String fecha,
     required String hora,
+    String? horaLlegada,
     required double precio,
     required int totalAsientos,
     required String token,
@@ -160,6 +217,7 @@ class AdminService {
         'destino': destino,
         'fecha': fecha,
         'hora': hora,
+        'horaLlegada': horaLlegada,
         'precio': precio,
         'totalAsientos': totalAsientos,
         'activo': activo,
@@ -194,6 +252,7 @@ class GestionVuelosService {
     required String destino,
     required String fecha,
     required String hora,
+    String? horaLlegada,
     required double precio,
     required int totalAsientos,
     required String token,
@@ -207,6 +266,8 @@ class GestionVuelosService {
         'destino': destino,
         'fecha': fecha,
         'hora': hora,
+        // El PUT reemplaza el vuelo completo: sin este campo la llegada guardada se borraría.
+        'horaLlegada': horaLlegada,
         'precio': precio,
         'totalAsientos': totalAsientos,
       },

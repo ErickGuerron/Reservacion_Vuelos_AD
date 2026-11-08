@@ -47,6 +47,22 @@ def test_sqlserver_sin_usuario_usa_autenticacion_de_windows(monkeypatch):
     assert "UID=" not in params
 
 
+def test_postgres_usa_la_url_de_supabase_y_un_esquema_por_contexto(monkeypatch):
+    monkeypatch.setenv("DB_PROVIDER", "postgres")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres:clave@db.ejemplo.supabase.co:5432/postgres")
+    assert db.database_url("vuelos") == "postgresql+psycopg://postgres:clave@db.ejemplo.supabase.co:5432/postgres"
+    assert db.postgres_connect_args("vuelos") == {"options": "-csearch_path=vuelos"}
+    assert db.postgres_connect_args("reservas") == {"options": "-csearch_path=reservas"}
+    assert db.postgres_connect_args("identidad") == {"options": "-csearch_path=identidad"}
+
+
+def test_postgres_sin_database_url_falla_con_mensaje_claro(monkeypatch):
+    monkeypatch.setenv("DB_PROVIDER", "postgres")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    with pytest.raises(ValueError, match="DATABASE_URL"):
+        db.database_url("identidad")
+
+
 def test_proveedor_desconocido_falla_con_mensaje_claro(monkeypatch):
     monkeypatch.setenv("DB_PROVIDER", "oracle")
     with pytest.raises(ValueError, match="DB_PROVIDER"):

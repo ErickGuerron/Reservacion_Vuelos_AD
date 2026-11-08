@@ -24,6 +24,13 @@ Internal calls between services (not for clients): S3 `POST /api/internal/vuelos
 - **Cancel**: `DELETE /api/reservas/{id}` frees the seat in S3 before marking the reservation as cancelled. If S3 is down, the cancellation fails with 503 and the reservation stays confirmed.
 - Flights that existed before this change receive a seat map on startup, with as many seats as they had free, laid out in 6 columns (A to F).
 
+## Passenger document and invoice
+
+- **Document per passenger**: each seat of a purchase carries the document of the person who flies in it. `POST /api/reservas` and `POST /api/reservas/lote` accept `tipoDocumento` (`"cedula"` or `"pasaporte"`) and `documento` per passenger. Both go together or neither is sent. A cédula is validated as an Ecuadorian ID (10 digits, province 01-24 or 30, third digit below 6, check digit); a passport is 6-12 letters or digits. Invalid values return 400 and nothing is stored. Reservations made before this change keep both fields `null`. Existing databases get the two columns on startup; on Supabase run `supabase/004_documento_pasajero.sql`.
+- **Listing**: `GET /api/reservas` and the S4 responses include `tipoDocumento` and `documento`.
+- **Invoice XML** (`GET /api/reservas/lote/{id}/factura`): the existing fields are unchanged (`numero`, `fecha`, `cliente`, `pasajeros`, `subtotal`, `iva` at 15 %, `total`). After `total` it adds `<vuelo>` (origin, destination, date, time, when S3 answers) and `<boletos>` with one `<boleto>` per confirmed passenger (`pasajero`, `tipoDocumento`, `documento`, `asiento`, `precio`).
+- **Flutter client**: the invoice dialog shows the flight, one ticket per passenger and the IVA, and downloads the invoice as XML (as S5 returns it) or as PDF (built in the app with the `pdf` package; run `flutter pub get` after pulling).
+
 ## CORS for Flutter
 
 Browser clients can call every service from any `localhost` or `127.0.0.1` port. Flutter web picks a random port on each run, so the default is a regular expression (`CORS_ORIGIN_REGEX`) and not a fixed list. The explicit list `CORS_ORIGINS` still applies on top of it. Set `CORS_ORIGIN_REGEX` to an empty value to disable the regular expression.
@@ -117,3 +124,14 @@ Every error: `{"codigo": "<CODE>", "mensaje": "<text>"}`. Invalid input returns 
 - The internal endpoints under `/api/internal/` have no authentication. They are reachable by anyone who can reach port 5003 or 5005; use network isolation outside local development.
 - S1 and S2 share the identity database file; S4 and S5 share the reservations database file. This is the deliberate trade-off of the five-service design.
 - A JWT is validated locally by each service with a shared HS256 key; there is no token revocation.
+
+## Arrival time (`horaLlegada`)
+
+Flights carry an optional estimated arrival time (`HH:MM`, 24 h, local time at the destination). It lives in `vuelos.vuelos.hora_llegada` (migration `supabase/003_hora_llegada.sql`), is served by S3 as `horaLlegada` on public and admin endpoints and is included in the `<vuelo>` block of the invoice XML. An arrival earlier than the departure is read as the next day (`+1`); the server does not validate it against the departure. `PUT /api/admin/vuelos/{id}` replaces the whole flight, so clients must resend `horaLlegada` when editing.
+
+### Departure and arrival rules (S3)
+
+- `shared/horarios.py` holds the rules. Times are local to each airport; durations are computed in UTC with the airport time zone (Ecuador UTC-5, Madrid with daylight saving; `tzdata` is in `requirements.txt` for Windows).
+- Creating or editing a flight requires the departure (origin local time) to be in the future. When `horaLlegada` is sent and the route is known, the implied duration must be within the usual duration +/- 25 % (at least 20 minutes). Usual durations are rough averages in `DURACIONES_MIN` (UIO-GYE 55 min, UIO-MAD 9 h 45, MAD-UIO 10 h 40, GYE-MAD 9 h 50, MAD-GYE 10 h 40) and can be tuned there. Unknown routes skip the duration check.
+- `GET /api/vuelos/estimacion?origen&destino&fecha&hora[&horaLlegada]` returns the usual duration, the suggested arrival and whether a given arrival is coherent (404 `RUTA_SIN_ESTIMACION` for unknown routes). The Flutter flight form uses it to suggest the arrival.
+- `GET /api/vuelos?franja=madrugada|manana|tarde|noche` filters by departure band (00-06, 06-12, 12-18, 18-24). Explorar vuelos applies the same bands on the client.

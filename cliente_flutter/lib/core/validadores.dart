@@ -90,6 +90,44 @@ String? validarHora(String? valor) {
   return null;
 }
 
+// ----- Documento del pasajero (espejo de shared/validacion.py) -----
+
+final _pasaporteRe = RegExp(r'^[A-Z0-9]{6,12}$');
+
+// Cédula ecuatoriana: 10 dígitos, provincia 01-24 o 30, tercer dígito menor que 6 y dígito verificador (módulo 10).
+bool cedulaEcuatorianaValida(String valor) {
+  if (!RegExp(r'^[0-9]{10}$').hasMatch(valor)) return false;
+  final provincia = int.parse(valor.substring(0, 2));
+  if (!((provincia >= 1 && provincia <= 24) || provincia == 30)) return false;
+  if (int.parse(valor[2]) > 5) return false;
+  var suma = 0;
+  for (var i = 0; i < 9; i++) {
+    var parcial = int.parse(valor[i]) * (i.isEven ? 2 : 1);
+    if (parcial > 9) parcial -= 9;
+    suma += parcial;
+  }
+  return (10 - suma % 10) % 10 == int.parse(valor[9]);
+}
+
+String? validarCedula(String? valor) {
+  final v = valor ?? '';
+  if (v.isEmpty) return 'Ingrese el número de cédula.';
+  if (!RegExp(r'^[0-9]+$').hasMatch(v)) return 'La cédula solo tiene dígitos.';
+  if (v.length < 10) return 'Faltan ${10 - v.length} dígitos.';
+  if (!cedulaEcuatorianaValida(v)) return 'Cédula no válida: revise los dígitos.';
+  return null;
+}
+
+String? validarPasaporte(String? valor) {
+  final v = (valor ?? '').toUpperCase();
+  if (v.isEmpty) return 'Ingrese el número de pasaporte.';
+  if (!_pasaporteRe.hasMatch(v)) return 'El pasaporte debe tener entre 6 y 12 letras o dígitos, sin espacios.';
+  return null;
+}
+
+// tipo: 'cedula' o 'pasaporte'.
+String? validarDocumento(String tipo, String? valor) => tipo == 'cedula' ? validarCedula(valor) : validarPasaporte(valor);
+
 // ----- Formatos de entrada: filtran lo que se puede escribir y conservan la posición del cursor -----
 
 // Recorre el texto nuevo y deja solo los caracteres permitidos. El cursor se recalcula contando
@@ -175,5 +213,22 @@ class SinEspacioInicialFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue anterior, TextEditingValue nuevo) {
     return _filtrar(nuevo, permitido: (_) => true, sinEspacioInicial: true);
+  }
+}
+
+// Documento del pasajero: la cédula admite solo dígitos (10); el pasaporte letras y dígitos en mayúsculas (12).
+class DocumentoFormatter extends TextInputFormatter {
+  DocumentoFormatter({required this.cedula});
+
+  final bool cedula;
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue anterior, TextEditingValue nuevo) {
+    return _filtrar(
+      nuevo,
+      permitido: (c) => cedula ? RegExp(r'^[0-9]$').hasMatch(c) : RegExp(r'^[A-Za-z0-9]$').hasMatch(c),
+      mayusculas: !cedula,
+      maximo: cedula ? 10 : 12,
+    );
   }
 }

@@ -29,20 +29,54 @@ SQLSERVER_DATABASES = {
 }
 
 
+# PostgreSQL (Supabase): one database, one schema per bounded context. The schemas are created by
+# supabase/001_esquema.sql; the services never create them.
+POSTGRES_SCHEMAS = {
+    "identidad": "identidad",
+    "vuelos": "vuelos",
+    "reservas": "reservas",
+}
+
+
 def _provider() -> str:
     provider = os.getenv("DB_PROVIDER", "sqlite").strip().lower()
-    if provider not in {"sqlite", "sqlserver"}:
-        raise ValueError(f"DB_PROVIDER must be 'sqlite' or 'sqlserver', got '{provider}'.")
+    if provider not in {"sqlite", "sqlserver", "postgres"}:
+        raise ValueError(
+            f"DB_PROVIDER must be 'sqlite', 'sqlserver' or 'postgres', got '{provider}'."
+        )
     return provider
+
+
+def revocacion_activa() -> bool:
+    """True when the services share one database (Supabase), so identidad.tokens can be consulted."""
+    return _provider() == "postgres"
 
 
 def database_url(name: str) -> str:
     """Return the SQLAlchemy URL for the named context, using the configured provider."""
-    if _provider() == "sqlite":
+    provider = _provider()
+    if provider == "sqlite":
         env_var, default_file = SQLITE_FILES[name]
         path = Path(os.getenv(env_var, os.path.join("data", default_file))).resolve()
         return f"sqlite:///{path.as_posix()}"
+    if provider == "postgres":
+        return _postgres_url()
     return _sqlserver_url(SQLSERVER_DATABASES[name])
+
+
+def _postgres_url() -> str:
+    """Connection string from DATABASE_URL (the Supabase 'session pooler' or direct URI)."""
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        raise ValueError("DATABASE_URL is required when DB_PROVIDER=postgres (Supabase connection URI).")
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url.removeprefix("postgresql://")
+    return url
+
+
+def postgres_connect_args(name: str) -> dict:
+    """Send the context's schema as the search_path, so unqualified table names land in it."""
+    return {"options": f"-csearch_path={POSTGRES_SCHEMAS[name]}"}
 
 
 def _sqlserver_url(database: str) -> str:
@@ -81,6 +115,8 @@ def session_factory(name: str):
     if url.startswith("sqlite"):
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(url, connect_args={"check_same_thread": False})
+    elif url.startswith("postgresql"):
+        engine = create_engine(url, pool_pre_ping=True, connect_args=postgres_connect_args(name))
     else:
         _create_sqlserver_database_if_missing(SQLSERVER_DATABASES[name])
         engine = create_engine(url, pool_pre_ping=True)

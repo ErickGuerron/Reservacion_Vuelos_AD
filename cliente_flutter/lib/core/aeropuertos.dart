@@ -5,3 +5,12 @@ const aeropuertos = <String, String>{
   'GYE': 'GYE • Guayaquil, José Joaquín de Olmedo',
   'MAD': 'MAD • Madrid-Barajas Adolfo Suárez',
 };
+
+// Ciudad de un código de aeropuerto ("UIO" -> "Quito"). Vacío si el código no está en la lista.
+String ciudadDe(String codigo) {
+  final texto = aeropuertos[codigo.toUpperCase()];
+  if (texto == null) return '';
+  final partes = texto.split('•');
+  final resto = (partes.length > 1 ? partes[1] : partes[0]).trim();
+  return resto.split(',').first.trim();
+}

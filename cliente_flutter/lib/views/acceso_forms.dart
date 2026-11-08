@@ -143,6 +143,13 @@ class _LoginFormState extends State<LoginForm> {
   bool _enviando = false;
   ({TipoAlerta tipo, String texto})? _alerta;
 
+  @override
+  void initState() {
+    super.initState();
+    // Aviso dejado por otra pantalla (p. ej. el registro); se muestra arriba del formulario.
+    final aviso = session.tomarAviso();
+    if (aviso != null) _alerta = (tipo: TipoAlerta.exito, texto: aviso);
+  }
 
   @override
   void dispose() {
@@ -224,7 +231,12 @@ class _LoginFormState extends State<LoginForm> {
 
 // Formulario de registro: POST /api/usuarios (S1), con medidor de seguridad de la contraseña.
 class RegistroForm extends StatefulWidget {
-  const RegistroForm({super.key});
+  const RegistroForm({super.key, required this.onSesionIniciada, required this.onIrALogin});
+
+  // Tras crear la cuenta se inicia sesión con las mismas credenciales.
+  final VoidCallback onSesionIniciada;
+  // Si ese inicio de sesión falla, la cuenta ya existe: se lleva al formulario de login.
+  final VoidCallback onIrALogin;
 
   @override
   State<RegistroForm> createState() => _RegistroFormState();
@@ -268,6 +280,17 @@ class _RegistroFormState extends State<RegistroForm> {
     return (texto: 'Excelente', color: const Color(0xFF059669), barras: 4);
   }
 
+  // Devuelve el token, o null si el login no se pudo completar (la cuenta ya fue creada).
+  Future<String?> _iniciarSesion(String email, String password) async {
+    try {
+      return await AuthService.login(email, password);
+    } on ConexionFallida {
+      return null;
+    } on ApiException {
+      return null;
+    }
+  }
+
   Future<void> _enviar() async {
     final nombre = _nombre.text.trim();
     final email = _email.text.trim();
@@ -293,13 +316,15 @@ class _RegistroFormState extends State<RegistroForm> {
     try {
       await UsuariosService.registrar(nombre: nombre, email: email, password: password);
       if (!mounted) return;
-      setState(() {
-        _alerta = (tipo: TipoAlerta.exito, texto: '¡Registro completado! Bienvenido a bordo, $nombre. Tu cuenta ya está activa.');
-        _nombre.clear();
-        _email.clear();
-        _password.clear();
-        _clave = '';
-      });
+      final token = await _iniciarSesion(email, password);
+      if (!mounted) return;
+      if (token != null) {
+        session.iniciar(token);
+        widget.onSesionIniciada();
+      } else {
+        session.avisar('Cuenta creada. Inicia sesión con tu correo y contraseña.');
+        widget.onIrALogin();
+      }
     } on ConexionFallida {
       if (!mounted) return;
       setState(() => _alerta = (tipo: TipoAlerta.error, texto: 'No se pudo conectar con el servicio de usuarios. ¿Está levantado?'));
@@ -361,8 +386,7 @@ class _RegistroFormState extends State<RegistroForm> {
         const SizedBox(height: 10),
         Row(
           children: [
-            Text('Seguridad de la contraseña:', style: AppTheme.labelSm(color: AppColors.slate500).copyWith(fontSize: 12)),
-            const Spacer(),
+            Expanded(child: Text('Seguridad de la contraseña:', style: AppTheme.labelSm(color: AppColors.slate500).copyWith(fontSize: 12))),
             Text(nivel.texto, style: AppTheme.telemetry(size: 12, weight: FontWeight.w600, color: nivel.color)),
           ],
         ),

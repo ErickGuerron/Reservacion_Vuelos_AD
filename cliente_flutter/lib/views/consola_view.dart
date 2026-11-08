@@ -128,7 +128,10 @@ class _ConsolaViewState extends State<ConsolaView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _Chip(texto: 'Consola de auditoría', fondo: AppColors.primary, color: AppColors.onPrimary, negrita: true),
                         const SizedBox(width: AppSpacing.sm),
@@ -195,8 +198,7 @@ class _ConsolaViewState extends State<ConsolaView> {
             children: [
               const Icon(Icons.hub, size: 16, color: AppColors.secondary),
               const SizedBox(width: 4),
-              Text('SERVICIOS (:5001 - :5005)', style: AppTheme.labelMd(color: AppColors.onSurfaceVariant).copyWith(letterSpacing: 1)),
-              const Spacer(),
+              Expanded(child: Text('SERVICIOS (:5001 - :5005)', style: AppTheme.labelMd(color: AppColors.onSurfaceVariant).copyWith(letterSpacing: 1))),
               TextButton(
                 onPressed: _verificar,
                 child: Text('Verificar ahora', style: AppTheme.telemetry(size: 12, weight: FontWeight.w600, color: AppColors.secondary)),
@@ -379,8 +381,7 @@ class _Terminal extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
             child: Row(
               children: [
-                Text('registro de intercambios HTTP', style: AppTheme.telemetry(size: 12, color: AppColors.onPrimaryContainer)),
-                const Spacer(),
+                Expanded(child: Text('registro de intercambios HTTP', style: AppTheme.telemetry(size: 12, color: AppColors.onPrimaryContainer))),
                 Text('$totalEventos eventos', style: AppTheme.telemetry(size: 12, color: AppColors.onPrimaryContainer)),
               ],
             ),
