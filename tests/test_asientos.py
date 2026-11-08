@@ -74,6 +74,8 @@ def test_admin_crea_vuelo_con_mapa_de_asientos_y_disponibilidad():
         "origen": "UIO",
         "destino": "GYE",
         "fecha": "2030-06-01",
+        "hora": "08:00",
+        "horaLlegada": None,  # campo aditivo: sin hora de llegada cargada
         "precio": 60.0,
         "asientosDisponibles": 18,
     }
@@ -82,6 +84,22 @@ def test_admin_crea_vuelo_con_mapa_de_asientos_y_disponibilidad():
     assert mapa["columnas"] == ["A", "B", "C", "D", "E", "F"]
     assert mapa["asientosLibres"] == 18
     assert [a["codigo"] for a in mapa["asientos"]] == CODIGOS_18
+
+
+def test_admin_guarda_la_hora_de_salida_al_crear_y_editar():
+    vuelo_id = _crear_vuelo_admin(hora="17:45")
+    assert vuelos.get(f"/api/vuelos/{vuelo_id}").json()["hora"] == "17:45"
+
+    edicion = vuelos.put(f"/api/admin/vuelos/{vuelo_id}", json={**VUELO_NUEVO, "hora": "06:05"}, headers=ADMIN)
+    assert edicion.status_code == 200, edicion.text
+    assert edicion.json()["hora"] == "06:05"
+    assert vuelos.get(f"/api/vuelos/{vuelo_id}").json()["hora"] == "06:05"
+
+
+@pytest.mark.parametrize("hora", ["24:00", "8:30", "12:60", "1230", "", "ab:cd"])
+def test_hora_fuera_de_formato_hh_mm_devuelve_400(hora):
+    response = vuelos.post("/api/admin/vuelos", json={**VUELO_NUEVO, "hora": hora}, headers=ADMIN)
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize("total", [18, 30, 180])

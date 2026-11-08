@@ -16,12 +16,15 @@ import hashlib
 import hmac
 import os
 import secrets
+from typing import NamedTuple
 
 import bcrypt
 import jwt
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from shared import db
+from shared import tokens as _tokens
 from shared.errors import ApiError
 
 ALGORITHM = "HS256"
@@ -73,9 +76,14 @@ def es_admin_de_configuracion(email: str) -> bool:
     return email.lower() in admins
 
 
-def create_token(email: str, rol: str = ROL_CLIENTE) -> dict:
+def create_token(email: str, rol: str = ROL_CLIENTE, nombre: str | None = None) -> dict:
     expires = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=TOKEN_MINUTES)
-    token = jwt.encode({"sub": email, "rol": rol, "exp": expires}, _secret(), algorithm=ALGORITHM)
+    # jti makes every token unique: two logins in the same second must not produce the same JWT.
+    claims = {"sub": email, "rol": rol, "exp": expires, "jti": secrets.token_hex(16)}
+    if nombre:
+        # Name copied at login: other services read it from the token, without calling S1.
+        claims["nombre"] = nombre
+    token = jwt.encode(claims, _secret(), algorithm=ALGORITHM)
     return {"token": token, "expiraEn": TOKEN_MINUTES * 60}
 
 
@@ -83,21 +91,40 @@ def _payload(credentials: HTTPAuthorizationCredentials | None) -> dict:
     if credentials is None:
         raise ApiError(401, "TOKEN_REQUERIDO", "Debe enviar un token Bearer.")
     try:
-        return jwt.decode(credentials.credentials, _secret(), algorithms=[ALGORITHM])
+        payload = jwt.decode(credentials.credentials, _secret(), algorithms=[ALGORITHM])
     except jwt.PyJWTError:
         raise ApiError(401, "TOKEN_INVALIDO", "El token no es válido o ha expirado.")
+    # Firma y expiración ya están verificadas; con base compartida también se comprueba la revocación.
+    if db.revocacion_activa() and not _tokens.token_activo(credentials.credentials):
+        raise ApiError(401, "TOKEN_REVOCADO", "El token fue revocado o ya no está activo.")
+    return payload
 
 
 def current_user_email(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
     return _payload(credentials)["sub"]
 
 
-def current_cliente_email(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
+def current_token(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
+    """El token crudo, ya validado (firma, expiración y revocación). Lo usa el cierre de sesión."""
+    _payload(credentials)
+    return credentials.credentials
+
+
+class Cuenta(NamedTuple):
+    email: str
+    nombre: str | None
+
+
+def current_cliente_cuenta(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> Cuenta:
     """Para reservar: solo cuentas de cliente. Los administradores gestionan vuelos, no reservan."""
     payload = _payload(credentials)
     if payload.get("rol") == ROL_ADMIN:
         raise ApiError(403, "PERMISO_DENEGADO", "Los administradores no pueden reservar vuelos. Use una cuenta de cliente.")
-    return payload["sub"]
+    return Cuenta(email=payload["sub"], nombre=payload.get("nombre"))
+
+
+def current_cliente_email(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
+    return current_cliente_cuenta(credentials).email
 
 
 def current_admin_email(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:

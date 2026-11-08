@@ -12,7 +12,8 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
-from shared.models import USUARIO_ROL_DDL, Base, Usuario
+from shared.models import USUARIO_ROL_DDL, Base, Token, Usuario
+from shared.tokens import revocar_tokens_de_usuario
 from shared.validacion import validar_nombre_persona, validar_password
 from shared.security import (
     BCRYPT_MAX_BYTES,
@@ -24,7 +25,7 @@ from shared.security import (
 )
 
 engine, SessionLocal = session_factory("identidad")
-create_tables(engine, Base, [Usuario.__table__])
+create_tables(engine, Base, [Usuario.__table__, Token.__table__])
 add_column_if_missing(engine, "usuarios", "rol", USUARIO_ROL_DDL)
 
 app = FastAPI(title="S1 - User service", version="1.1.0")
@@ -80,6 +81,14 @@ def _verificar_administrador(db, email: str) -> None:
     responses=errores(400, 409),
     summary="Registrar un usuario (rol cliente)",
 )
+@app.post(
+    "/api/usuarios/registro",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UsuarioOut,
+    responses=errores(400, 409),
+    summary="Alias de POST /api/usuarios (mismo contrato)",
+    include_in_schema=False,
+)
 def registrar_usuario(datos: UsuarioIn):
     email = str(datos.email).lower()
     with SessionLocal() as db:
@@ -133,6 +142,8 @@ def cambiar_rol(usuario_id: int, datos: RolIn, email: str = Depends(current_admi
             if db.query(Usuario).filter(Usuario.rol == ROL_ADMIN).count() <= 1:
                 raise ApiError(409, "ULTIMO_ADMINISTRADOR", "No se puede quitar el rol al último administrador.")
         usuario.rol = datos.rol
+        # El rol viaja en el token: los tokens existentes conservan el rol anterior. Se revocan para que el cambio sea inmediato.
+        revocar_tokens_de_usuario(db, usuario.id)
         db.commit()
         db.refresh(usuario)
         return _out(usuario)

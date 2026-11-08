@@ -111,3 +111,38 @@ def validar_solo_numero(valor: object, campo: str = "valor") -> object:
     if isinstance(valor, (str, bool)):
         raise ValueError(f"{campo} debe ser un número.")
     return valor
+
+
+TIPOS_DOCUMENTO = ("cedula", "pasaporte")
+PASAPORTE_RE = re.compile(r"[A-Z0-9]{6,12}")
+
+
+def validar_cedula(valor: str) -> str:
+    """Cédula ecuatoriana: 10 dígitos, provincia 01-24 o 30, tercer dígito menor que 6 y dígito verificador (módulo 10)."""
+    if not re.fullmatch(r"[0-9]{10}", valor):
+        raise ValueError("La cédula debe tener exactamente 10 dígitos.")
+    provincia = int(valor[:2])
+    if not (1 <= provincia <= 24 or provincia == 30) or int(valor[2]) > 5:
+        raise ValueError("La cédula no es válida.")
+    suma = 0
+    for i in range(9):
+        parcial = int(valor[i]) * (2 if i % 2 == 0 else 1)
+        suma += parcial - 9 if parcial > 9 else parcial
+    if (10 - suma % 10) % 10 != int(valor[9]):
+        raise ValueError("La cédula no es válida: revise los dígitos.")
+    return valor
+
+
+def validar_pasaporte(valor: str) -> str:
+    """Pasaporte: entre 6 y 12 letras o dígitos, sin espacios; se devuelve en mayúsculas."""
+    valor = valor.upper()
+    if not PASAPORTE_RE.fullmatch(valor):
+        raise ValueError("El pasaporte debe tener entre 6 y 12 letras o dígitos, sin espacios.")
+    return valor
+
+
+def validar_documento(tipo: str, numero: str) -> tuple[str, str]:
+    """Valida el documento de un pasajero según su tipo. Devuelve (tipo, número normalizado)."""
+    if tipo not in TIPOS_DOCUMENTO:
+        raise ValueError("El tipo de documento debe ser 'cedula' o 'pasaporte'.")
+    return tipo, (validar_cedula(numero) if tipo == "cedula" else validar_pasaporte(numero))

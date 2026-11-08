@@ -16,18 +16,31 @@ import os
 
 import httpx
 from fastapi import Depends, FastAPI, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from shared.asientos import MAX_ASIENTOS
-from shared.validacion import validar_codigo_asiento, validar_nombre_pasajero, validar_solo_numero
+from shared.validacion import validar_codigo_asiento, validar_documento, validar_nombre_pasajero, validar_solo_numero
 from shared.cors import enable_cors
-from shared.db import create_tables, session_factory
+from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
-from shared.models import Base, Reserva, ReservaAsiento, reserva_to_dict
+from shared.models import (
+    RESERVA_DOCUMENTO_DDL,
+    RESERVA_LOTE_DDL,
+    RESERVA_PRECIO_DDL,
+    RESERVA_TIPO_DOCUMENTO_DDL,
+    Base,
+    Reserva,
+    ReservaAsiento,
+    reserva_to_dict,
+)
 from shared.security import current_cliente_email
 
 engine, SessionLocal = session_factory("reservas")
 create_tables(engine, Base, [Reserva.__table__, ReservaAsiento.__table__])
+add_column_if_missing(engine, "reservas", "lote_id", RESERVA_LOTE_DDL)
+add_column_if_missing(engine, "reservas", "precio", RESERVA_PRECIO_DDL)
+add_column_if_missing(engine, "reservas", "tipo_documento", RESERVA_TIPO_DOCUMENTO_DDL)
+add_column_if_missing(engine, "reservas", "documento", RESERVA_DOCUMENTO_DDL)
 
 FLIGHTS_URL = os.getenv("FLIGHTS_SERVICE_URL", "http://localhost:5003")
 log = logging.getLogger("reservas")
@@ -44,9 +57,20 @@ def _validar_asiento_opcional(valor: str | None) -> str | None:
     return validar_codigo_asiento(valor)
 
 
+def _documento_completo(modelo):
+    """El documento es opcional, pero tipo y número van juntos y se validan según el tipo."""
+    if (modelo.tipoDocumento is None) != (modelo.documento is None):
+        raise ValueError("El tipo de documento y su número deben enviarse juntos.")
+    if modelo.tipoDocumento is not None:
+        modelo.tipoDocumento, modelo.documento = validar_documento(modelo.tipoDocumento, modelo.documento)
+    return modelo
+
+
 class ReservaIn(BaseModel):
     vueloId: int
     pasajero: str = Field(min_length=1, max_length=100)
+    tipoDocumento: str | None = Field(default=None, description="'cedula' o 'pasaporte'")
+    documento: str | None = Field(default=None, max_length=20, description="Número de cédula o de pasaporte")
     asiento: str | None = Field(
         default=None,
         max_length=10,
@@ -68,10 +92,16 @@ class ReservaIn(BaseModel):
     def _asiento_valido(cls, valor: str | None) -> str | None:
         return _validar_asiento_opcional(valor)
 
+    @model_validator(mode="after")
+    def _documento_valido(self):
+        return _documento_completo(self)
+
 
 class ReservaItemIn(BaseModel):
     pasajero: str = Field(min_length=1, max_length=100)
     asiento: str | None = Field(default=None, max_length=10)
+    tipoDocumento: str | None = Field(default=None, description="'cedula' o 'pasaporte'")
+    documento: str | None = Field(default=None, max_length=20, description="Número de cédula o de pasaporte")
 
     @field_validator("pasajero")
     @classmethod
@@ -82,6 +112,10 @@ class ReservaItemIn(BaseModel):
     @classmethod
     def _asiento_valido(cls, valor: str | None) -> str | None:
         return _validar_asiento_opcional(valor)
+
+    @model_validator(mode="after")
+    def _documento_valido(self):
+        return _documento_completo(self)
 
 
 class ReservasLoteIn(BaseModel):
@@ -100,6 +134,10 @@ class ReservaOut(BaseModel):
     pasajero: str
     estado: str
     asiento: str | None = None
+    loteId: int | None = Field(default=None, description="Reservas de una misma compra comparten este valor")
+    precio: float | None = Field(default=None, description="Precio por asiento al momento de reservar")
+    tipoDocumento: str | None = Field(default=None, description="'cedula' o 'pasaporte'")
+    documento: str | None = Field(default=None, description="Número de documento de quien viaja")
 
 
 class CambioAsientoIn(BaseModel):
@@ -196,13 +234,24 @@ def crear_reservas_lote(datos: ReservasLoteIn, email: str = Depends(current_clie
     # Chequeo previo para responder rápido; el descuento real lo hace S3 de forma atómica.
     if vuelo["asientosDisponibles"] < len(datos.reservas):
         raise ApiError(409, "SIN_ASIENTOS", "El vuelo no tiene asientos disponibles.")
+    precio = vuelo.get("precio")
     with SessionLocal() as db:
         reservas = [
-            Reserva(usuario_email=email, vuelo_id=datos.vueloId, pasajero=item.pasajero, estado="confirmada")
+            Reserva(
+                usuario_email=email,
+                vuelo_id=datos.vueloId,
+                pasajero=item.pasajero,
+                estado="confirmada",
+                precio=precio,
+                tipo_documento=item.tipoDocumento,
+                documento=item.documento,
+            )
             for item in datos.reservas
         ]
         db.add_all(reservas)
-        db.flush()  # the ids are needed to tag the seats in S3
+        db.flush()  # the ids are needed to tag the seats in S3 and to name the lote
+        for reserva in reservas:
+            reserva.lote_id = reservas[0].id
         asignados = reservar_lote_s3(
             datos.vueloId,
             [(reserva.id, (item.asiento or "").strip() or None) for reserva, item in zip(reservas, datos.reservas)],
@@ -230,7 +279,7 @@ def crear_reservas_lote(datos: ReservasLoteIn, email: str = Depends(current_clie
 )
 def crear_reserva(datos: ReservaIn, email: str = Depends(current_cliente_email)):
     lote = crear_reservas_lote(
-        ReservasLoteIn(vueloId=datos.vueloId, reservas=[ReservaItemIn(pasajero=datos.pasajero, asiento=datos.asiento)]),
+        ReservasLoteIn(vueloId=datos.vueloId, reservas=[ReservaItemIn(pasajero=datos.pasajero, asiento=datos.asiento, tipoDocumento=datos.tipoDocumento, documento=datos.documento)]),
         email,
     )
     return lote[0]

@@ -6,17 +6,22 @@ On each successful login the service:
 - copies the stored role into the token's "rol" claim.
 """
 
-from fastapi import FastAPI
+import datetime as dt
+import hashlib
+
+from fastapi import Depends, FastAPI
 from pydantic import BaseModel, Field, field_validator
 
 from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
-from shared.models import USUARIO_ROL_DDL, Base, Usuario
+from shared.models import USUARIO_ROL_DDL, Base, Token, Usuario
+from shared.tokens import revocar_token
 from shared.validacion import validar_email
 from shared.security import (
     ROL_ADMIN,
     create_token,
+    current_token,
     es_admin_de_configuracion,
     hash_password,
     needs_rehash,
@@ -24,7 +29,7 @@ from shared.security import (
 )
 
 engine, SessionLocal = session_factory("identidad")
-create_tables(engine, Base, [Usuario.__table__])
+create_tables(engine, Base, [Usuario.__table__, Token.__table__])
 add_column_if_missing(engine, "usuarios", "rol", USUARIO_ROL_DDL)
 
 app = FastAPI(title="S2 - Authentication", version="1.1.0")
@@ -64,5 +69,26 @@ def login(datos: LoginIn):
             usuario.password_hash = hash_password(datos.password)
         if es_admin_de_configuracion(usuario.email):
             usuario.rol = ROL_ADMIN
+        emitido = create_token(usuario.email, rol=usuario.rol, nombre=usuario.nombre)
+        db.add(
+            Token(
+                usuario_id=usuario.id,
+                token=hashlib.sha256(emitido["token"].encode()).hexdigest(),
+                expiracion=dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=emitido["expiraEn"]),
+                estado="activo",
+            )
+        )
         db.commit()
-        return {**create_token(usuario.email, rol=usuario.rol), "rol": usuario.rol}
+        return {**emitido, "rol": usuario.rol}
+
+
+@app.post(
+    "/api/auth/logout",
+    responses=errores(401),
+    summary="Cerrar sesión: revoca el token que se envía (requiere token Bearer)",
+)
+def logout(token: str = Depends(current_token)):
+    with SessionLocal() as db:
+        revocar_token(db, token)
+        db.commit()
+    return {"estado": "sesion_cerrada"}

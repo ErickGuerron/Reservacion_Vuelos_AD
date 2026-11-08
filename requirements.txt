@@ -7,5 +7,6 @@ httpx
 email-validator
 python-dotenv
 pyodbc
+psycopg[binary]
 pytest
 dotenv

@@ -40,6 +40,26 @@ def test_reserva_exitosa_con_vuelo_disponible(monkeypatch):
     assert body["estado"] == "confirmada"
 
 
+def test_reserva_lote_agrupa_pasajeros_y_guarda_el_precio(monkeypatch):
+    monkeypatch.setattr(
+        reservas_main,
+        "obtener_vuelo",
+        lambda vuelo_id: {"id": vuelo_id, "asientosDisponibles": 5, "precio": 89.0},
+    )
+    response = client.post(
+        "/api/reservas/lote",
+        json={"vueloId": 7, "reservas": [{"pasajero": "Ana Torres"}, {"pasajero": "Luis Mora"}]},
+        headers=AUTH,
+    )
+    assert response.status_code == 201
+    reservas = response.json()
+    assert len(reservas) == 2
+    lote_ids = {r["loteId"] for r in reservas}
+    assert len(lote_ids) == 1
+    assert lote_ids == {reservas[0]["id"]}
+    assert all(r["precio"] == 89.0 for r in reservas)
+
+
 def test_reserva_sin_asientos_devuelve_409(monkeypatch):
     monkeypatch.setattr(
         reservas_main,
