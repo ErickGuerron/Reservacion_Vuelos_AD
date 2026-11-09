@@ -4,6 +4,7 @@ Each bounded context owns one database:
 - identidad: S1 and S2 (users and credentials)
 - vuelos: S3 (flights)
 - reservas: S4 and S5 (reservations)
+- aviones: S6 (aircraft registry)
 """
 
 import os
@@ -20,12 +21,14 @@ SQLITE_FILES = {
     "identidad": ("IDENTITY_DB", "identidad.db"),
     "vuelos": ("FLIGHTS_DB", "vuelos.db"),
     "reservas": ("BOOKINGS_DB", "reservas.db"),
+    "aviones": ("AVIONES_DB", "aviones.db"),
 }
 
 SQLSERVER_DATABASES = {
     "identidad": "ReservasIdentidad",
     "vuelos": "ReservasVuelos",
     "reservas": "ReservasReservas",
+    "aviones": "ReservasAviones",
 }
 
 
@@ -35,6 +38,7 @@ POSTGRES_SCHEMAS = {
     "identidad": "identidad",
     "vuelos": "vuelos",
     "reservas": "reservas",
+    "aviones": "aviones",
 }
 
 
