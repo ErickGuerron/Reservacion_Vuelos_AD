@@ -6,8 +6,10 @@ Internal (S4, S5):     POST /api/internal/vuelos/{id}/asientos/reservar,
                        POST /api/internal/reservas/{id}/liberar
 """
 
+import os
 from datetime import date, datetime, timedelta, timezone
 
+import httpx
 from fastapi import Depends, FastAPI, Query, status
 from pydantic import BaseModel, Field, field_validator
 
@@ -16,7 +18,7 @@ from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
 from shared.horarios import FRANJAS, estimar, franja_de, validar_horario
-from shared.models import VUELO_ACTIVO_DDL, VUELO_HORA_DDL, VUELO_HORA_LLEGADA_DDL, AsientoVuelo, Base, Vuelo
+from shared.models import VUELO_ACTIVO_DDL, VUELO_AVION_DDL, VUELO_HORA_DDL, VUELO_HORA_LLEGADA_DDL, AsientoVuelo, Base, Vuelo
 from shared.security import current_admin_email
 from shared.validacion import validar_iata, validar_solo_numero
 
@@ -25,6 +27,33 @@ create_tables(engine, Base, [Vuelo.__table__, AsientoVuelo.__table__])
 add_column_if_missing(engine, "vuelos", "activo", VUELO_ACTIVO_DDL)
 add_column_if_missing(engine, "vuelos", "hora", VUELO_HORA_DDL)
 add_column_if_missing(engine, "vuelos", "hora_llegada", VUELO_HORA_LLEGADA_DDL)
+add_column_if_missing(engine, "vuelos", "avion_id", VUELO_AVION_DDL)
+
+# S6 Aviones: de allí sale la capacidad (número de asientos) de cada vuelo nuevo o editado.
+AVIONES_URL = os.getenv("AVIONES_SERVICE_URL", "http://localhost:5006")
+
+
+def obtener_avion(avion_id: int) -> dict:
+    """Internal call to S6 GET /api/internal/aviones/{id}: name, capacity and whether it is active."""
+    try:
+        response = httpx.get(f"{AVIONES_URL}/api/internal/aviones/{avion_id}", timeout=5)
+    except httpx.HTTPError:
+        raise ApiError(503, "SERVICIO_NO_DISPONIBLE", "El servicio de aviones no está disponible.")
+    if response.status_code == 404:
+        raise ApiError(404, "AVION_NO_EXISTE", "El avión no existe.")
+    if response.status_code != 200:
+        raise ApiError(503, "SERVICIO_NO_DISPONIBLE", "El servicio de aviones no está disponible.")
+    return response.json()
+
+
+def _avion_asignable(avion_id: int) -> dict:
+    avion = obtener_avion(avion_id)
+    if not avion["activo"]:
+        raise ApiError(409, "AVION_INACTIVO", "El avión está desactivado y no puede asignarse a vuelos.")
+    motivo = validar_total_asientos(avion["capacidad"])
+    if motivo:
+        raise ApiError(400, "DATOS_INVALIDOS", motivo)
+    return avion
 
 # Hora de salida en 24 horas, HH:MM.
 HORA_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
@@ -108,11 +137,7 @@ class VueloAdminIn(BaseModel):
         description="Hora estimada de llegada HH:MM (24 horas). Opcional.",
     )
     precio: float = Field(gt=0, le=100_000)
-    totalAsientos: int = Field(
-        ge=MIN_ASIENTOS,
-        le=MAX_ASIENTOS,
-        description="Total de asientos del avión: múltiplo de 6, filas de 3 + 3 (18 a 180)",
-    )
+    avionId: int = Field(gt=0, description="Avión registrado en S6: sus asientos son los del vuelo")
     activo: bool = Field(
         default=False,
         description="Al crear: true publica el vuelo; false lo deja como borrador (valor por defecto)",
@@ -123,7 +148,7 @@ class VueloAdminIn(BaseModel):
     def _iata(cls, valor: str) -> str:
         return validar_iata(valor)
 
-    @field_validator("precio", "totalAsientos", mode="before")
+    @field_validator("precio", "avionId", mode="before")
     @classmethod
     def _solo_numero(cls, valor: object) -> object:
         return validar_solo_numero(valor, "El valor")
@@ -304,9 +329,8 @@ def crear_vuelo(datos: VueloAdminIn, _: str = Depends(current_admin_email)):
     motivo = validar_horario(origen, destino, datos.fecha, datos.hora, datos.horaLlegada)
     if motivo:
         raise ApiError(400, "DATOS_INVALIDOS", motivo)
-    motivo = validar_total_asientos(datos.totalAsientos)
-    if motivo:
-        raise ApiError(400, "DATOS_INVALIDOS", motivo)
+    avion = _avion_asignable(datos.avionId)
+    capacidad = avion["capacidad"]
 
     with SessionLocal() as db:
         vuelo = Vuelo(
@@ -316,12 +340,13 @@ def crear_vuelo(datos: VueloAdminIn, _: str = Depends(current_admin_email)):
             hora=datos.hora,
             hora_llegada=datos.horaLlegada,
             precio=datos.precio,
-            asientos_disponibles=datos.totalAsientos,
+            asientos_disponibles=capacidad,
             activo=datos.activo,
+            avion_id=datos.avionId,
         )
         db.add(vuelo)
         db.flush()
-        db.add_all(AsientoVuelo(vuelo_id=vuelo.id, **datos_asiento) for datos_asiento in layout_para_total(datos.totalAsientos))
+        db.add_all(AsientoVuelo(vuelo_id=vuelo.id, **datos_asiento) for datos_asiento in layout_para_total(capacidad))
         db.commit()
         db.refresh(vuelo)
         return _to_dict(vuelo)
@@ -335,6 +360,7 @@ class VueloAdminOut(BaseModel):
     hora: str
     horaLlegada: str | None = None
     precio: float
+    avionId: int | None = Field(default=None, description="Avión del vuelo; null en vuelos anteriores al registro de aviones")
     totalAsientos: int
     asientosDisponibles: int
     asientosOcupados: int
@@ -357,6 +383,7 @@ def _admin_dict(db, vuelo: Vuelo) -> dict:
         "hora": vuelo.hora,
         "horaLlegada": vuelo.hora_llegada,
         "precio": vuelo.precio,
+        "avionId": vuelo.avion_id,
         "totalAsientos": total,
         "asientosDisponibles": vuelo.asientos_disponibles,
         "asientosOcupados": ocupados,
@@ -391,9 +418,7 @@ def editar_vuelo(vuelo_id: int, datos: VueloAdminIn, _: str = Depends(current_ad
     motivo = validar_horario(origen, destino, datos.fecha, datos.hora, datos.horaLlegada)
     if motivo:
         raise ApiError(400, "DATOS_INVALIDOS", motivo)
-    motivo = validar_total_asientos(datos.totalAsientos)
-    if motivo:
-        raise ApiError(400, "DATOS_INVALIDOS", motivo)
+    capacidad = _avion_asignable(datos.avionId)["capacidad"]
 
     with SessionLocal() as db:
         vuelo = _flight_or_404(db, vuelo_id)
@@ -401,12 +426,13 @@ def editar_vuelo(vuelo_id: int, datos: VueloAdminIn, _: str = Depends(current_ad
             raise ApiError(409, "VUELO_CON_RESERVAS", "El vuelo tiene reservas y no puede editarse.")
         vuelo.origen, vuelo.destino, vuelo.fecha, vuelo.hora, vuelo.precio = origen, destino, datos.fecha, datos.hora, datos.precio
         vuelo.hora_llegada = datos.horaLlegada
+        vuelo.avion_id = datos.avionId
         total_actual = db.query(AsientoVuelo).filter(AsientoVuelo.vuelo_id == vuelo_id).count()
-        if total_actual != datos.totalAsientos:
-            # Sin reservas no hay asientos tomados: se rehace el mapa con el nuevo total.
+        if total_actual != capacidad:
+            # Sin reservas no hay asientos tomados: se rehace el mapa con la capacidad del avión elegido.
             db.query(AsientoVuelo).filter(AsientoVuelo.vuelo_id == vuelo_id).delete(synchronize_session=False)
-            db.add_all(AsientoVuelo(vuelo_id=vuelo_id, **datos_asiento) for datos_asiento in layout_para_total(datos.totalAsientos))
-            vuelo.asientos_disponibles = datos.totalAsientos
+            db.add_all(AsientoVuelo(vuelo_id=vuelo_id, **datos_asiento) for datos_asiento in layout_para_total(capacidad))
+        vuelo.asientos_disponibles = capacidad
         db.commit()
         db.refresh(vuelo)
         return _admin_dict(db, vuelo)

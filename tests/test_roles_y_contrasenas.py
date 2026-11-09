@@ -18,7 +18,7 @@ vuelos = TestClient(vuelos_app)
 
 PASSWORD = "clave-roles-123"
 ADMIN_CONFIG = "admin@aerovuelo.com"  # listed in ADMIN_EMAILS by tests/conftest.py
-VUELO = {"origen": "UIO", "destino": "MAD", "fecha": "2031-03-03", "precio": 500, "totalAsientos": 18}
+VUELO = {"origen": "UIO", "destino": "MAD", "fecha": "2031-03-03", "precio": 500, "avionId": 1}
 
 
 def _registrar(email: str) -> int:

@@ -5,7 +5,7 @@ from vuelos.main import app
 
 vuelos = TestClient(app)
 ADMIN = {"Authorization": f"Bearer {create_token('admin@aerovuelo.com', rol='administrador')['token']}"}
-BASE = {"origen": "UIO", "destino": "CUE", "fecha": "2031-05-05", "precio": 60, "totalAsientos": 18, "activo": True}
+BASE = {"origen": "UIO", "destino": "CUE", "fecha": "2031-05-05", "precio": 60, "avionId": 1, "activo": True}
 
 
 def test_hora_llegada_se_guarda_y_se_publica():

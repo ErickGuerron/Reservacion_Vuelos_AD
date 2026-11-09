@@ -21,7 +21,7 @@ VUELO = {
     "fecha": "2030-06-01",
     "hora": "08:00",
     "precio": 60,
-    "totalAsientos": 18,
+    "avionId": 1,
     "activo": True,
 }
 
