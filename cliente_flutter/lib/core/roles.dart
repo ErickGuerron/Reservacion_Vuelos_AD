@@ -32,4 +32,7 @@ class Permisos {
 
   // Editar y activar/desactivar vuelos: solo administradores. Editar además requiere que el vuelo no tenga reservas.
   bool get puedeGestionarVuelos => rol == Rol.administrador;
+
+  // Registro de aviones (S6): solo administradores (POST /api/admin/aviones valida el rol en el servidor).
+  bool get puedeGestionarAviones => rol == Rol.administrador;
 }

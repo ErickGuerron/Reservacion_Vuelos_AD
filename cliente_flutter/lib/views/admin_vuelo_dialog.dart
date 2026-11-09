@@ -11,15 +11,14 @@ import '../theme/app_theme.dart';
 import '../widgets/alerta.dart';
 import 'mapa_asientos.dart';
 
-// Políticas de cabina (mismas reglas que el servicio S3): 18 a 180 asientos, filas de 3 + 3.
+// Políticas de cabina (mismas reglas que el servicio S6): 18 a 180 asientos, filas de 3 + 3.
 const minimoAsientos = 18;
 const maximoAsientos = 180;
 const pasoAsientos = 6;
 
-bool _totalValido(int n) => n >= minimoAsientos && n <= maximoAsientos && n % pasoAsientos == 0;
-
 // Alta o edición de vuelo para administradores. Crear: POST /api/admin/vuelos.
 // Editar: PUT /api/admin/vuelos/{id}, solo si el vuelo no tiene reservas.
+// El avión (S6) pone los asientos del vuelo: se elige de la lista de aviones activos.
 class AdminVueloDialog extends StatefulWidget {
   const AdminVueloDialog({super.key, required this.token, this.vuelo});
 
@@ -39,7 +38,11 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
   late final TextEditingController _hora;
   late final TextEditingController _llegada;
   late final TextEditingController _precio;
-  late int _total;
+  // Avión elegido: su capacidad son los asientos del vuelo. Null hasta elegir uno.
+  int? _avionId;
+  // Aviones que se pueden asignar: los activos, más el del vuelo que se edita aunque esté desactivado.
+  List<Avion>? _aviones;
+  String? _errorAviones;
   bool _enviando = false;
   // Duración habitual de la ruta según S3, y número de consulta para ignorar respuestas atrasadas.
   EstimacionVuelo? _estimacion;
@@ -66,11 +69,36 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
     _hora = TextEditingController(text: v?.hora ?? "${_now.hour.toString().padLeft(2,'0')}:${_now.minute.toString().padLeft(2,'0')}");
     _llegada = TextEditingController(text: v?.horaLlegada ?? '');
     _precio = TextEditingController(text: v == null ? '' : v.precio.toStringAsFixed(2));
-    // Un vuelo puede tener un total que ya no es válido (por ejemplo 0 asientos): se parte de uno válido.
-    final total = v?.totalAsientos;
-    _total = total != null && _totalValido(total) ? total : minimoAsientos;
-    _asientosPrevia = _construirPrevia(_total);
+    // Un vuelo anterior al registro de aviones no tiene avión: el administrador debe elegir uno.
+    _avionId = v?.avionId;
+    _asientosPrevia = const <Asiento>[];
+    _cargarAviones();
     _actualizarEstimacion();
+  }
+
+  Future<void> _cargarAviones() async {
+    try {
+      final todos = await AvionesService.listar(token: widget.token);
+      if (!mounted) return;
+      setState(() {
+        _aviones = [for (final a in todos) if (a.activo || a.id == _avionId) a];
+        final elegido = _avionElegido;
+        if (elegido != null) _asientosPrevia = _construirPrevia(elegido.capacidad);
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _errorAviones = e.mensaje);
+    }
+  }
+
+  Avion? get _avionElegido {
+    final id = _avionId;
+    final lista = _aviones;
+    if (id == null || lista == null) return null;
+    for (final a in lista) {
+      if (a.id == id) return a;
+    }
+    return null;
   }
 
   @override
@@ -91,10 +119,13 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
           for (final c in _columnas) AsientoRemoto(codigo: '$fila$c', fila: fila, columna: c, ocupado: false),
       ]);
 
-  void _cambiarTotal(int n) => setState(() {
-        _total = n;
-        _asientosPrevia = _construirPrevia(n);
-      });
+  // Elegir avión: el plano de la vista previa muestra su capacidad.
+  void _cambiarAvion(int id) {
+    setState(() {
+      _avionId = id;
+      _asientosPrevia = _construirPrevia(_avionElegido?.capacidad ?? minimoAsientos);
+    });
+  }
 
   void _invertirRuta() {
     setState(() {
@@ -218,7 +249,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
           hora: hora,
           horaLlegada: llegada,
           precio: precio,
-          totalAsientos: _total,
+          avionId: _avionId!,
           token: widget.token,
         );
       } else {
@@ -230,7 +261,7 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
           hora: hora,
           horaLlegada: llegada,
           precio: precio,
-          totalAsientos: _total,
+          avionId: _avionId!,
           token: widget.token,
         );
       }
@@ -247,9 +278,11 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final opciones = [for (var n = minimoAsientos; n <= maximoAsientos; n += pasoAsientos) n];
     final precio = double.tryParse(_precio.text.trim());
-    final filas = _total ~/ pasoAsientos;
+    final avion = _avionElegido;
+    final total = avion?.capacidad ?? 0;
+    final filas = total ~/ pasoAsientos;
+    final aviones = _aviones ?? const <Avion>[];
 
     final formulario = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -396,23 +429,38 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
               const SizedBox(width: AppSpacing.sm + 4),
               Expanded(
                 child: DropdownButtonFormField<int>(
-                  initialValue: _total,
+                  initialValue: _avionId,
                   isExpanded: true,
                   decoration: InputDecoration(
-                    labelText: 'Total de asientos',
-                    helperText: _editando && !_totalValido(widget.vuelo!.totalAsientos)
-                        ? 'Tenía ${widget.vuelo!.totalAsientos} (no válido)'
-                        : '$filas filas de 3 + 3',
+                    labelText: 'Avión',
+                    helperText: avion == null ? null : '${avion.capacidad} asientos · $filas filas de 3 + 3',
                   ),
-                  items: [for (final n in opciones) DropdownMenuItem(value: n, child: Text('$n asientos'))],
+                  items: [
+                    for (final a in aviones)
+                      DropdownMenuItem(
+                        value: a.id,
+                        child: Text(
+                          a.activo ? '${a.nombre} · ${a.capacidad} asientos' : '${a.nombre} · ${a.capacidad} asientos (desactivado)',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  validator: (v) => v == null ? 'Elija un avión.' : null,
                   onChanged: (v) {
-                    if (v != null) _cambiarTotal(v);
+                    if (v != null) _cambiarAvion(v);
                   },
                 ),
               ),
             ],
           ),
         ),
+        if (_errorAviones != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Alerta(tipo: TipoAlerta.error, texto: 'No se pudieron cargar los aviones: $_errorAviones'),
+        ] else if (_aviones != null && aviones.isEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          const Alerta(tipo: TipoAlerta.aviso, texto: 'No hay aviones activos. Registre uno con el botón Aviones antes de crear el vuelo.'),
+        ],
         if (!_editando) ...[
           const SizedBox(height: AppSpacing.md),
           Container(
@@ -437,12 +485,19 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
       ],
     );
 
-    final previa = _VistaPreviaAvion(
-      key: const ValueKey('vista-previa-avion'),
-      total: _total,
-      asientos: _asientosPrevia,
-      controlador: _zoom,
-    );
+    final previa = avion == null
+        ? Container(
+            height: 280,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Text('Elija un avión para ver su plano de asientos.', textAlign: TextAlign.center, style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
+          )
+        : _VistaPreviaAvion(
+            key: const ValueKey('vista-previa-avion'),
+            total: total,
+            asientos: _asientosPrevia,
+            controlador: _zoom,
+          );
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.lg),

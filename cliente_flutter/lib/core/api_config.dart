@@ -9,4 +9,5 @@ class ApiConfig {
   static const vuelos = gateway;
   static const reservas = gateway;
   static const gestion = gateway;
+  static const aviones = gateway;
 }

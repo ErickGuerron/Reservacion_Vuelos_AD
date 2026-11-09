@@ -20,12 +20,12 @@ A4. Vuelos sembrados o anteriores (avion_id NULL) conservan su mapa; al editarlo
 
 ## Tasks
 
-T1 [S1, S2, S4] Servicio S6 Aviones + contexto de base de datos + tests. Route: inline. Status: pending.
-T2 [S5] supabase/006_aviones.sql + README (puertos, variables, primer administrador). Route: inline. Status: pending.
-T3 [S3, S6] S3 valida avión contra S6 al crear y editar; avion_id en vuelos; actualizar tests existentes de totalAsientos. Route: inline. Status: pending.
-T4 [S1] Gateway (ruta /api/admin/aviones, puerto, estado) y consola (servicio S6). Route: inline. Status: pending.
-T5 [S6, S7] Flutter: modelo Avion, AvionesService, diálogo de aviones para administrador, selector de avión en alta/edición de vuelo. Route: inline. Status: pending.
-T6 [all] Verificación completa: pytest, flutter analyze, flutter test. Status: pending.
+T1 [S1, S2, S4] Servicio S6 Aviones + contexto de base de datos + tests. Route: inline. Status: done (ba4b547; 17 tests).
+T2 [S5] supabase/006_aviones.sql + README (puertos, variables, primer administrador). Route: inline. Status: done (ba4b547).
+T3 [S3, S6] S3 valida avión contra S6 al crear y editar; avion_id en vuelos; actualizar tests existentes de totalAsientos. Route: inline. Status: done (8bf0c09; suite 272 en verde).
+T4 [S1] Gateway (ruta /api/admin/aviones, puerto, estado) y consola (servicio S6). Route: inline. Status: done (9501fdc; suite 278 en verde).
+T5 [S6, S7] Flutter: modelo Avion, AvionesService, diálogo de aviones para administrador, selector de avión en alta/edición de vuelo. Route: inline. Status: written; NOT compiled. Flutter SDK local 3.47.0 / Dart 3.13.0 < pubspec ^3.13.3, pub get falla. Verified only by dart format parse (no syntax errors).
+T6 [all] Verificación completa: pytest (en verde), flutter analyze y flutter test (bloqueado por SDK local). Status: pytest done; Flutter pending SDK update (requires user consent).
 
 ## Log
 
