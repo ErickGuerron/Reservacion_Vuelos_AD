@@ -548,21 +548,50 @@ def reservar_lote(vuelo_id: int, datos: LoteIn):
         return {"vueloId": vuelo_id, "asientos": asignados}
 
 
+def _liberar(db, reserva_id: int, vuelo_id: int | None = None) -> int:
+    """Free every seat held by the reservation (only on `vuelo_id` when given). The caller commits."""
+    consulta = db.query(AsientoVuelo).filter(AsientoVuelo.reserva_id == reserva_id)
+    if vuelo_id is not None:
+        consulta = consulta.filter(AsientoVuelo.vuelo_id == vuelo_id)
+    asientos = consulta.all()
+    for asiento in asientos:
+        asiento.reserva_id = None
+        db.query(Vuelo).filter(Vuelo.id == asiento.vuelo_id).update(
+            {Vuelo.asientos_disponibles: Vuelo.asientos_disponibles + 1}, synchronize_session=False
+        )
+    return len(asientos)
+
+
 @app.post(
     "/api/internal/reservas/{reserva_id}/liberar",
     response_model=LiberacionOut,
-    summary="Liberar los asientos de una reserva cancelada (uso interno de S5)",
+    summary="Liberar los asientos de una reserva (uso interno: compensación de S4)",
 )
 def liberar_asientos(reserva_id: int):
     with SessionLocal() as db:
-        asientos = db.query(AsientoVuelo).filter(AsientoVuelo.reserva_id == reserva_id).all()
-        for asiento in asientos:
-            asiento.reserva_id = None
-            db.query(Vuelo).filter(Vuelo.id == asiento.vuelo_id).update(
-                {Vuelo.asientos_disponibles: Vuelo.asientos_disponibles + 1}, synchronize_session=False
-            )
+        liberados = _liberar(db, reserva_id)
         db.commit()
-        return {"liberados": len(asientos)}
+        return {"liberados": liberados}
+
+
+class CancelacionIn(BaseModel):
+    vueloId: int
+
+
+@app.post(
+    "/api/internal/reservas/{reserva_id}/cancelar",
+    response_model=LiberacionOut,
+    responses=errores(404, 409),
+    summary="Liberar los asientos de una reserva que se cancela, dentro del corte de venta (uso interno de S5)",
+)
+def cancelar_asientos_reserva(reserva_id: int, datos: CancelacionIn):
+    with SessionLocal() as db:
+        # Mismo corte que al reservar: no se cancela ni se libera un asiento a menos de 3 horas de la salida.
+        vuelo = _flight_or_404(db, datos.vueloId)
+        _validar_ventana_reserva(vuelo)
+        liberados = _liberar(db, reserva_id, datos.vueloId)
+        db.commit()
+        return {"liberados": liberados}
 
 
 class CambioAsientoIn(BaseModel):
@@ -574,12 +603,13 @@ class CambioAsientoIn(BaseModel):
     "/api/internal/reservas/{reserva_id}/cambiar-asiento",
     response_model=AsientoAsignadoOut,
     responses=errores(400, 404, 409),
-    summary="Mover una reserva a otro asiento libre (uso interno de S4)",
+    summary="Mover una reserva a otro asiento libre (uso interno de S4 y compensación de S5)",
 )
 def cambiar_asiento_reserva(reserva_id: int, datos: CambioAsientoIn):
     codigo = datos.asiento.strip().upper()
     with SessionLocal() as db:
-        _flight_or_404(db, datos.vueloId)
+        vuelo = _flight_or_404(db, datos.vueloId)
+        _validar_ventana_reserva(vuelo)
         nuevo = db.query(AsientoVuelo).filter(AsientoVuelo.vuelo_id == datos.vueloId, AsientoVuelo.codigo == codigo).first()
         if nuevo is None:
             raise ApiError(404, "ASIENTO_NO_EXISTE", "El asiento no existe en este vuelo.")

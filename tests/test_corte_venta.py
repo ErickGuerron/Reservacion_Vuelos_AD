@@ -93,3 +93,52 @@ def test_reserva_individual_tambien_respeta_el_corte(monkeypatch):
 
     assert response.status_code == 409
     assert response.json()["codigo"] == "RESERVA_CERRADA"
+
+
+# ----- Cancelar y cambiar asiento también respetan el corte -----
+
+
+def _reserva_antes_del_corte(monkeypatch, reserva_id: int) -> int:
+    vuelo_id = _vuelo_publicado()
+    monkeypatch.setattr(vuelos_main, "_ahora_venta", lambda: _ahora(2030, 5, 31, 20, 0))
+    assert _reservar(vuelo_id, reserva_id).status_code == 200
+    return vuelo_id
+
+
+def _libres(vuelo_id: int) -> int:
+    return vuelos.get(f"/api/vuelos/{vuelo_id}/asientos").json()["asientosLibres"]
+
+
+def test_cancelar_dentro_del_corte_devuelve_409_y_conserva_el_asiento(monkeypatch):
+    vuelo_id = _reserva_antes_del_corte(monkeypatch, 990010)
+    monkeypatch.setattr(vuelos_main, "_ahora_venta", lambda: _ahora(2030, 6, 1, 6, 0))
+
+    response = vuelos.post("/api/internal/reservas/990010/cancelar", json={"vueloId": vuelo_id})
+
+    assert response.status_code == 409
+    assert response.json()["codigo"] == "RESERVA_CERRADA"
+    assert _libres(vuelo_id) == 17
+
+
+def test_cancelar_fuera_del_corte_libera_el_asiento(monkeypatch):
+    vuelo_id = _reserva_antes_del_corte(monkeypatch, 990011)
+
+    response = vuelos.post("/api/internal/reservas/990011/cancelar", json={"vueloId": vuelo_id})
+
+    assert response.status_code == 200
+    assert response.json() == {"liberados": 1}
+    assert _libres(vuelo_id) == 18
+
+
+def test_cambiar_asiento_dentro_del_corte_devuelve_409(monkeypatch):
+    vuelo_id = _reserva_antes_del_corte(monkeypatch, 990012)
+    monkeypatch.setattr(vuelos_main, "_ahora_venta", lambda: _ahora(2030, 6, 1, 6, 0))
+
+    response = vuelos.post(
+        "/api/internal/reservas/990012/cambiar-asiento", json={"vueloId": vuelo_id, "asiento": "2A"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["codigo"] == "RESERVA_CERRADA"
+    ocupados = [a["codigo"] for a in vuelos.get(f"/api/vuelos/{vuelo_id}/asientos").json()["asientos"] if a["ocupado"]]
+    assert ocupados == ["1A"]

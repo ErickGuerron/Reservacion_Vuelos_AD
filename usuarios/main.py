@@ -8,6 +8,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from sqlalchemy.exc import IntegrityError
 
 from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
@@ -101,7 +102,12 @@ def registrar_usuario(datos: UsuarioIn):
             rol=ROL_CLIENTE,
         )
         db.add(usuario)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Otra petición registró el mismo correo entre la comprobación y el INSERT: la restricción UNIQUE decide.
+            db.rollback()
+            raise ApiError(409, "EMAIL_DUPLICADO", "El correo electrónico ya está registrado.")
         db.refresh(usuario)
         return _out(usuario)
 

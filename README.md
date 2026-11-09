@@ -10,7 +10,7 @@ Five independent FastAPI services that communicate over HTTP with JSON, one data
 | S4 Reservas | 5004 | `POST /api/reservas` (Bearer, optional `asiento`) |
 | S5 Gestión de reservas | 5005 | `GET /api/reservas`, `DELETE /api/reservas/{id}` (Bearer) |
 
-Internal calls between services (not for clients): S3 `POST /api/internal/vuelos/{id}/asientos/reservar` (used by S4) and `POST /api/internal/reservas/{id}/liberar` (used by S5).
+Internal calls between services (not for clients): S3 `POST /api/internal/vuelos/{id}/asientos/reservar` (used by S4), `POST /api/internal/reservas/{id}/cancelar` (used by S5, applies the sale cutoff) and `POST /api/internal/reservas/{id}/liberar` (used by S4 to compensate a failed booking).
 
 ## Administrators and seat selection
 
@@ -21,7 +21,8 @@ Internal calls between services (not for clients): S3 `POST /api/internal/vuelos
 - **Create a flight** (admin token): `POST /api/admin/vuelos` with `{origen, destino, fecha, precio, filas, columnas}`. Origin and destination are 3-letter codes; `filas` is 1-50 and `columnas` is 1-8 (letters A to H). The response is 201 with the flight. Without a token it returns 401; with a client token it returns 403 (`PERMISO_DENEGADO`).
 - **Seat map** (public): `GET /api/vuelos/{id}/asientos` returns `{vueloId, filas, columnas, asientosLibres, asientos: [{codigo, fila, columna, ocupado}]}`. Seat codes look like `12C`.
 - **Choose a seat**: `POST /api/reservas` accepts `"asiento": "12C"`. The seat is taken in S3 inside the same transaction as the reservation, so a seat taken by another passenger returns 409 `ASIENTO_OCUPADO`, an unknown seat returns 404 `ASIENTO_NO_EXISTE`, and no reservation is saved in either case. If `asiento` is omitted, the first free seat is assigned. The response includes `asiento`.
-- **Cancel**: `DELETE /api/reservas/{id}` frees the seat in S3 before marking the reservation as cancelled. If S3 is down, the cancellation fails with 503 and the reservation stays confirmed.
+- **Cancel**: `DELETE /api/reservas/{id}` frees the seat in S3 before marking the reservation as cancelled. If S3 is down, the cancellation fails with 503 and the reservation stays confirmed. If saving the cancellation fails after S3 freed the seat, S5 gives the seat back to the reservation and answers 503.
+- **Sale cutoff for changes**: cancelling and changing seat follow the same 3-hour cutoff as booking. Within 3 hours of departure both answer 409 `RESERVA_CERRADA` and the reservation keeps its seat.
 - Flights that existed before this change receive a seat map on startup, with as many seats as they had free, laid out in 6 columns (A to F).
 
 ## Passenger document and invoice
