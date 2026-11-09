@@ -20,6 +20,7 @@ SERVICIOS = [
     Servicio("vuelos", "S3", "Vuelos", "vuelos.main:app", 5003),
     Servicio("reservas", "S4", "Reservas", "reservas.main:app", 5004),
     Servicio("gestion", "S5", "Gestión de reservas", "gestion.main:app", 5005),
+    Servicio("aviones", "S6", "Aviones", "aviones.main:app", 5006),
 ]
 
 

@@ -15,6 +15,7 @@ PUERTOS = {
     "vuelos": 5003,
     "reservas": 5004,
     "gestion": 5005,
+    "aviones": 5006,
 }
 
 # (prefix, service, methods or None for all methods)
@@ -24,6 +25,7 @@ REGLAS = [
     ("/api/auth", "autenticacion", None),
     ("/api/vuelos", "vuelos", None),
     ("/api/admin/vuelos", "vuelos", None),
+    ("/api/admin/aviones", "aviones", None),
     ("/api/reservas", "reservas", {"POST"}),
     ("/api/reservas", "gestion", {"GET", "DELETE"}),
 ]

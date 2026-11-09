@@ -41,6 +41,10 @@ def _backend(monkeypatch, handler):
         ("/api/reservas", "POST", "reservas"),
         ("/api/reservas", "GET", "gestion"),
         ("/api/reservas/7", "DELETE", "gestion"),
+        ("/api/admin/aviones", "GET", "aviones"),
+        ("/api/admin/aviones", "POST", "aviones"),
+        ("/api/admin/aviones/3", "PUT", "aviones"),
+        ("/api/admin/aviones/3/estado", "PATCH", "aviones"),
     ],
 )
 def test_cada_ruta_publica_llega_a_su_servicio(path, method, servicio):
@@ -55,10 +59,20 @@ def test_cada_ruta_publica_llega_a_su_servicio(path, method, servicio):
         ("/api/reservasx", "GET"),
         ("/api/vuelos_secretos", "GET"),
         ("/api/reservas", "PUT"),
+        ("/api/internal/aviones/1", "GET"),
     ],
 )
 def test_rutas_internas_o_desconocidas_no_se_enrutan(path, method):
     assert resolver(path, method) is None
+
+
+def test_servicio_de_aviones_desactivado_responde_503(estado_tmp):
+    estado.fijar_habilitado("aviones", False)
+
+    response = client.get("/api/admin/aviones")
+
+    assert response.status_code == 503
+    assert response.json()["codigo"] == "SERVICIO_DESACTIVADO"
 
 
 # ----- Reenvío -----
