@@ -26,6 +26,21 @@ class Usuario(Base):
 USUARIO_ROL_DDL = "VARCHAR(20) NOT NULL DEFAULT 'cliente'"
 
 
+class Avion(Base):
+    """Avión registrado por S6. La capacidad es el número de asientos (18 a 180, múltiplo de 6)."""
+
+    __tablename__ = "aviones"
+    __table_args__ = (
+        CheckConstraint("capacidad >= 18 AND capacidad <= 180 AND capacidad % 6 = 0", name="ck_aviones_capacidad"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(60), unique=True)
+    capacidad: Mapped[int] = mapped_column(Integer)
+    # Un avión inactivo no puede asignarse a vuelos nuevos; los vuelos que ya lo usan conservan su mapa.
+    activo: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+
+
 class Vuelo(Base):
     __tablename__ = "vuelos"
     __table_args__ = (
@@ -47,12 +62,15 @@ class Vuelo(Base):
     activo: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     # Hora estimada de llegada en HH:MM (opcional). Puede ser al día siguiente; no se valida contra la salida.
     hora_llegada: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Avión asignado (S6). NULL = vuelo anterior al registro de aviones; no hay FK: el avión vive en otro servicio.
+    avion_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
 
 
 # Columns added after the first release. Existing databases get them through add_column_if_missing.
 VUELO_ACTIVO_DDL = "BIT NOT NULL DEFAULT 1"
 VUELO_HORA_DDL = "VARCHAR(5) NOT NULL DEFAULT '08:00'"
 VUELO_HORA_LLEGADA_DDL = "VARCHAR(5) NULL"
+VUELO_AVION_DDL = "INTEGER NULL"
 
 
 class AsientoVuelo(Base):

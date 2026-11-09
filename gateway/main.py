@@ -25,6 +25,7 @@ NOMBRES = {
     "vuelos": "S3 Vuelos",
     "reservas": "S4 Reservas",
     "gestion": "S5 Gestión de reservas",
+    "aviones": "S6 Aviones",
 }
 
 # Hop-by-hop headers and the ones the gateway or httpx recomputes.

@@ -11,7 +11,7 @@ from vuelos.main import app as vuelos_app
 vuelos = TestClient(vuelos_app)
 ADMIN = {"Authorization": f"Bearer {create_token('admin@aerovuelo.com', rol=ROL_ADMIN)['token']}"}
 CLIENTE = {"Authorization": f"Bearer {create_token('gestion-cliente@correo.com')['token']}"}
-DATOS = {"origen": "UIO", "destino": "GYE", "fecha": "2030-07-01", "precio": 70, "totalAsientos": 18}
+DATOS = {"origen": "UIO", "destino": "GYE", "fecha": "2030-07-01", "precio": 70, "avionId": 1}
 
 
 def _crear(activo: bool = True) -> int:
@@ -51,7 +51,7 @@ def test_vuelo_sin_reservas_se_edita_y_rehace_el_mapa():
     vuelo_id = _crear()
     response = vuelos.put(
         f"/api/admin/vuelos/{vuelo_id}",
-        json={**DATOS, "origen": "GYE", "destino": "MAD", "precio": 80, "totalAsientos": 24},
+        json={**DATOS, "origen": "GYE", "destino": "MAD", "precio": 80, "avionId": 2},
         headers=ADMIN,
     )
     assert response.status_code == 200, response.text

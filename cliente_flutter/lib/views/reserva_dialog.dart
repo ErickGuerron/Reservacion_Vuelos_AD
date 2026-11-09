@@ -7,6 +7,8 @@ import '../core/models.dart';
 import '../core/services.dart';
 import '../core/validadores.dart';
 import '../theme/app_theme.dart';
+import '../widgets/alerta_exito.dart';
+import '../widgets/scroll_por_teclado.dart';
 import 'mapa_asientos.dart';
 
 enum _Estado { listo, enviando, ok, error }
@@ -115,7 +117,7 @@ class _ReservaDialogState extends State<ReservaDialog> {
 
     final pasajero = await showDialog<_Pasajero>(
       context: context,
-      builder: (_) => _DialogoPasajero(codigo: a.codigo, vuelo: widget.vuelo),
+      builder: (_) => ScrollDialogo(child: _DialogoPasajero(codigo: a.codigo, vuelo: widget.vuelo)),
     );
     if (pasajero == null || !mounted) return;
     setState(() {
@@ -154,6 +156,14 @@ class _ReservaDialogState extends State<ReservaDialog> {
         _estado = _Estado.ok;
       });
       anunciarReservaCreada();
+      // Alerta de éxito: al aceptarla se cierra también el modal de reserva.
+      await mostrarAlertaExito(
+        context,
+        titulo: 'Boletos reservados',
+        mensaje: 'Sus boletos quedaron confirmados. Números de reserva: ${reservas.map((r) => '#${r.id}').join(', ')}.',
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.status == 409) {

@@ -12,6 +12,8 @@ import '../widgets/alerta.dart';
 import '../widgets/hub_estaciones.dart';
 import 'acciones_admin_vuelo.dart';
 import 'admin_vuelo_dialog.dart';
+import 'aviones_dialog.dart';
+import '../widgets/scroll_por_teclado.dart';
 import 'reserva_dialog.dart';
 
 const _ciudades = {'UIO': 'Quito', 'GYE': 'Guayaquil', 'MAD': 'Madrid'};
@@ -191,7 +193,7 @@ class _VuelosViewState extends State<VuelosView> {
     if (token == null) return;
     final guardado = await showDialog<bool>(
       context: context,
-      builder: (_) => AdminVueloDialog(token: token, vuelo: vuelo),
+      builder: (_) => ScrollDialogo(child: AdminVueloDialog(token: token, vuelo: vuelo)),
     );
     if (guardado != true || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Vuelo #${vuelo.id} actualizado.')));
@@ -214,13 +216,20 @@ class _VuelosViewState extends State<VuelosView> {
     }
   }
 
+  // Registro de aviones: solo administradores. Lo que se registra aquí se elige al crear un vuelo.
+  Future<void> _gestionarAviones() async {
+    final token = session.token;
+    if (token == null) return;
+    await showDialog<void>(context: context, builder: (_) => ScrollDialogo(child: AvionesDialog(token: token)));
+  }
+
   // Alta de vuelo: solo visible para administradores (el servidor vuelve a validar el rol).
   Future<void> _crearVuelo() async {
     final token = session.token;
     if (token == null) return;
     final creado = await showDialog<bool>(
       context: context,
-      builder: (_) => AdminVueloDialog(token: token),
+      builder: (_) => ScrollDialogo(child: AdminVueloDialog(token: token)),
     );
     if (creado != true || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vuelo creado con su mapa de asientos.')));
@@ -236,7 +245,7 @@ class _VuelosViewState extends State<VuelosView> {
     }
     showDialog<void>(
       context: context,
-      builder: (_) => ReservaDialog(vuelo: vuelo, token: token),
+      builder: (_) => ScrollDialogo(child: ReservaDialog(vuelo: vuelo, token: token)),
     );
   }
 
@@ -302,6 +311,7 @@ class _VuelosViewState extends State<VuelosView> {
             onReservar: _reservar,
             acciones: esAdmin ? _accionesAdmin : null,
             onCrear: Permisos(session.rol).puedeCrearVuelos ? _crearVuelo : null,
+            onAviones: Permisos(session.rol).puedeGestionarAviones ? _gestionarAviones : null,
             gestion: _gestion,
             subtitulo: subtitulo,
             onLimpiarFiltros: _fecha == null && !_soloUltimos && _franja == null ? null : _limpiarFiltros,
@@ -806,6 +816,7 @@ class ResultadosVuelos extends StatelessWidget {
     required this.onReservar,
     this.acciones,
     this.onCrear,
+    this.onAviones,
     this.gestion = const {},
     this.subtitulo,
     this.controles,
@@ -818,6 +829,8 @@ class ResultadosVuelos extends StatelessWidget {
   final Widget? Function(Vuelo vuelo)? acciones;
   // Solo administradores: crear un vuelo desde la cabecera de resultados.
   final VoidCallback? onCrear;
+  // Solo administradores: registrar y gestionar aviones (su capacidad son los asientos del vuelo).
+  final VoidCallback? onAviones;
   // Datos de ocupación por vuelo (solo administrador).
   final Map<int, VueloAdmin> gestion;
   final String? subtitulo;
@@ -844,15 +857,28 @@ class ResultadosVuelos extends StatelessWidget {
                 if (subtitulo != null) Text(subtitulo!, style: AppTheme.bodySm(color: AppColors.onSurfaceVariant)),
               ],
             ),
-            if (onCrear != null)
-              FilledButton.icon(
-                onPressed: onCrear,
-                icon: const Icon(Icons.add, size: 18),
-                label: Text('Crear vuelo', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
-                ),
+            if (onAviones != null || onCrear != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onAviones != null)
+                    OutlinedButton.icon(
+                      onPressed: onAviones,
+                      icon: const Icon(Icons.airplanemode_active_outlined, size: 18),
+                      label: const Text('Aviones'),
+                    ),
+                  if (onAviones != null && onCrear != null) const SizedBox(width: AppSpacing.sm),
+                  if (onCrear != null)
+                    FilledButton.icon(
+                      onPressed: onCrear,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text('Crear vuelo', style: AppTheme.labelLg(color: AppColors.onPrimary).copyWith(fontWeight: FontWeight.w700)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
+                      ),
+                    ),
+                ],
               ),
           ],
         ),

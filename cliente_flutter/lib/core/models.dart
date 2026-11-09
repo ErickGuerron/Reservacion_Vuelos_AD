@@ -69,6 +69,7 @@ class VueloAdmin {
     required this.asientosOcupados,
     required this.activo,
     required this.editable,
+    this.avionId,
   });
 
   final int id;
@@ -83,6 +84,8 @@ class VueloAdmin {
   final int asientosOcupados;
   final bool activo;
   final bool editable;
+  // Avión del vuelo (S6). Null en vuelos anteriores al registro de aviones.
+  final int? avionId;
 
   factory VueloAdmin.fromJson(Map<String, dynamic> json) => VueloAdmin(
         id: (json['id'] as num).toInt(),
@@ -97,6 +100,28 @@ class VueloAdmin {
         asientosOcupados: (json['asientosOcupados'] as num).toInt(),
         activo: json['activo'] as bool,
         editable: json['editable'] as bool,
+        avionId: (json['avionId'] as num?)?.toInt(),
+      );
+}
+
+// Avión registrado (S6). Su capacidad es el número de asientos de los vuelos que lo usan.
+class Avion {
+  const Avion({required this.id, required this.nombre, required this.capacidad, required this.activo});
+
+  final int id;
+  final String nombre;
+  final int capacidad;
+  // Un avión inactivo no se asigna a vuelos nuevos; los vuelos que ya lo usan conservan su mapa.
+  final bool activo;
+
+  // Filas de 3 + 3 que forma la capacidad.
+  int get filas => capacidad ~/ 6;
+
+  factory Avion.fromJson(Map<String, dynamic> json) => Avion(
+        id: (json['id'] as num).toInt(),
+        nombre: json['nombre'] as String,
+        capacidad: (json['capacidad'] as num).toInt(),
+        activo: json['activo'] as bool,
       );
 }
 

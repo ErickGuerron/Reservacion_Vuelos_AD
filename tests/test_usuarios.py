@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from shared.models import Usuario
+from usuarios import main as usuarios_main
 from usuarios.main import app
 
 client = TestClient(app)
@@ -21,6 +23,25 @@ def test_email_duplicado_devuelve_409():
     payload = {"nombre": "Dup", "email": "dup@correo.com", "password": "clave-segura-2"}
     client.post("/api/usuarios", json=payload)
     response = client.post("/api/usuarios", json=payload)
+    assert response.status_code == 409
+    assert response.json()["codigo"] == "EMAIL_DUPLICADO"
+
+
+def test_registro_concurrente_del_mismo_correo_devuelve_409(monkeypatch):
+    hash_original = usuarios_main.hash_password
+
+    def otra_peticion_registra_el_correo_primero(password):
+        # Entre la comprobación previa y el INSERT, otra petición registra el mismo correo.
+        with usuarios_main.SessionLocal() as otra:
+            otra.add(Usuario(nombre="Otra", email="carrera@correo.com", password_hash="x", rol="cliente"))
+            otra.commit()
+        return hash_original(password)
+
+    monkeypatch.setattr(usuarios_main, "hash_password", otra_peticion_registra_el_correo_primero)
+    response = client.post(
+        "/api/usuarios",
+        json={"nombre": "Carrera", "email": "carrera@correo.com", "password": "clave-segura-5"},
+    )
     assert response.status_code == 409
     assert response.json()["codigo"] == "EMAIL_DUPLICADO"
 

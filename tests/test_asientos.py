@@ -27,7 +27,7 @@ VUELO_NUEVO = {
     "destino": "gye",
     "fecha": "2030-06-01",
     "precio": 60,
-    "totalAsientos": 18,
+    "avionId": 1,  # avión de prueba con 18 asientos
     "activo": True,  # publicado: los clientes pueden reservar
 }
 CODIGOS_18 = [f"{fila}{letra}" for fila in (1, 2, 3) for letra in "ABCDEF"]
@@ -102,14 +102,14 @@ def test_hora_fuera_de_formato_hh_mm_devuelve_400(hora):
     assert response.status_code == 400
 
 
-@pytest.mark.parametrize("total", [18, 30, 180])
-def test_total_valido_multiplo_de_6_entre_18_y_180(total):
-    _crear_vuelo_admin(totalAsientos=total)
+@pytest.mark.parametrize("avion_id, capacidad", [(1, 18), (2, 24), (4, 180)])
+def test_el_vuelo_tiene_los_asientos_de_su_avion(avion_id, capacidad):
+    vuelo_id = _crear_vuelo_admin(avionId=avion_id)
+    assert vuelos.get(f"/api/vuelos/{vuelo_id}/asientos").json()["asientosLibres"] == capacidad
 
 
-@pytest.mark.parametrize("total", [0, 6, 12, 13, 20, 186])
-def test_total_fuera_de_politica_devuelve_400(total):
-    response = vuelos.post("/api/admin/vuelos", json={**VUELO_NUEVO, "totalAsientos": total}, headers=ADMIN)
+def test_avion_con_capacidad_fuera_de_politica_devuelve_400():
+    response = vuelos.post("/api/admin/vuelos", json={**VUELO_NUEVO, "avionId": 6}, headers=ADMIN)
     assert response.status_code == 400
     assert response.json()["codigo"] == "DATOS_INVALIDOS"
 

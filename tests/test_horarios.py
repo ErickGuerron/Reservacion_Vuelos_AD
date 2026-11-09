@@ -8,7 +8,7 @@ from vuelos.main import app
 
 vuelos = TestClient(app)
 ADMIN = {"Authorization": f"Bearer {create_token('admin@aerovuelo.com', rol='administrador')['token']}"}
-BASE = {"origen": "UIO", "destino": "GYE", "fecha": "2031-08-08", "hora": "08:30", "precio": 50, "totalAsientos": 18, "activo": True}
+BASE = {"origen": "UIO", "destino": "GYE", "fecha": "2031-08-08", "hora": "08:30", "precio": 50, "avionId": 1, "activo": True}
 
 
 def _crear(**cambios):

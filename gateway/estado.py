@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CLAVES_SERVICIOS = ("usuarios", "autenticacion", "vuelos", "reservas", "gestion")
+CLAVES_SERVICIOS = ("usuarios", "autenticacion", "vuelos", "reservas", "gestion", "aviones")
 
 
 def ruta_estado() -> Path:

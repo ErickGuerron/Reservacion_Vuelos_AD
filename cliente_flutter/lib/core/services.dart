@@ -205,7 +205,8 @@ class AdminService {
     required String hora,
     String? horaLlegada,
     required double precio,
-    required int totalAsientos,
+    // Avión registrado (S6): sus asientos son los del vuelo.
+    required int avionId,
     required String token,
   }) async {
     final respuesta = await ApiClient.enviar(
@@ -219,7 +220,7 @@ class AdminService {
         'hora': hora,
         'horaLlegada': horaLlegada,
         'precio': precio,
-        'totalAsientos': totalAsientos,
+        'avionId': avionId,
         'activo': activo,
       },
     );
@@ -227,6 +228,64 @@ class AdminService {
       throw ApiException(respuesta.mensaje ?? 'No se pudo crear el vuelo.', status: respuesta.status);
     }
     return Vuelo.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+  }
+}
+
+// Registro de aviones (S6): solo administradores. Nombre y capacidad (número de asientos).
+class AvionesService {
+  // GET /api/admin/aviones: todos los aviones, también los inactivos.
+  static Future<List<Avion>> listar({required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'GET',
+      Uri.parse('${ApiConfig.aviones}/api/admin/aviones'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudieron cargar los aviones.', status: respuesta.status);
+    }
+    return (respuesta.cuerpo as List).map((a) => Avion.fromJson(a as Map<String, dynamic>)).toList();
+  }
+
+  // POST /api/admin/aviones: 201 con el avión creado. Nombre repetido: 409 AVION_DUPLICADO.
+  static Future<Avion> crear({required String nombre, required int capacidad, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'POST',
+      Uri.parse('${ApiConfig.aviones}/api/admin/aviones'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {'nombre': nombre, 'capacidad': capacidad},
+    );
+    if (respuesta.status != 201) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo registrar el avión.', status: respuesta.status);
+    }
+    return Avion.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+  }
+
+  // PUT /api/admin/aviones/{id}: cambia nombre y capacidad. Los vuelos existentes conservan su mapa.
+  static Future<Avion> editar({required int id, required String nombre, required int capacidad, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'PUT',
+      Uri.parse('${ApiConfig.aviones}/api/admin/aviones/$id'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {'nombre': nombre, 'capacidad': capacidad},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo editar el avión.', status: respuesta.status);
+    }
+    return Avion.fromJson(respuesta.cuerpo as Map<String, dynamic>);
+  }
+
+  // PATCH /api/admin/aviones/{id}/estado: activa o desactiva el avión para nuevos vuelos.
+  static Future<Avion> cambiarEstado({required int id, required bool activo, required String token}) async {
+    final respuesta = await ApiClient.enviar(
+      'PATCH',
+      Uri.parse('${ApiConfig.aviones}/api/admin/aviones/$id/estado'),
+      cabeceras: {'Authorization': 'Bearer $token'},
+      cuerpo: {'activo': activo},
+    );
+    if (!respuesta.ok) {
+      throw ApiException(respuesta.mensaje ?? 'No se pudo cambiar el estado del avión.', status: respuesta.status);
+    }
+    return Avion.fromJson(respuesta.cuerpo as Map<String, dynamic>);
   }
 }
 
@@ -254,7 +313,7 @@ class GestionVuelosService {
     required String hora,
     String? horaLlegada,
     required double precio,
-    required int totalAsientos,
+    required int avionId,
     required String token,
   }) async {
     final respuesta = await ApiClient.enviar(
@@ -269,7 +328,7 @@ class GestionVuelosService {
         // El PUT reemplaza el vuelo completo: sin este campo la llegada guardada se borraría.
         'horaLlegada': horaLlegada,
         'precio': precio,
-        'totalAsientos': totalAsientos,
+        'avionId': avionId,
       },
     );
     if (!respuesta.ok) {

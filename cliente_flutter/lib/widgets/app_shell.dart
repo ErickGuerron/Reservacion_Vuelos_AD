@@ -10,6 +10,7 @@ import '../views/acceso_view.dart';
 import '../views/consola_view.dart';
 import '../views/mis_reservas_view.dart';
 import '../views/vuelos_view.dart';
+import 'scroll_por_teclado.dart';
 
 const _anchoNavegacion = 1280.0; // breakpoint xl de tailwind: la navegación aparece desde aquí
 const _anchoSesion = 768.0; // breakpoint md: la pastilla de sesión aparece desde aquí
@@ -24,6 +25,9 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   Ruta _ruta = Ruta.vuelos;
 
+  // Desplazamiento de la página completa (lo usan las flechas del teclado).
+  final _desplazamiento = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +37,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     session.removeListener(_alCambiarSesion);
+    _desplazamiento.dispose();
     super.dispose();
   }
 
@@ -88,13 +93,18 @@ class _AppShellState extends State<AppShell> {
           children: [
             _Cabecera(ruta: _ruta, onIrA: _irA, onCerrarSesion: _cerrarSesion),
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    KeyedSubtree(key: ValueKey(_ruta), child: _vista()),
-                    const _Pie(),
-                  ],
+              // Las flechas del teclado suben y bajan la página en todas las pantallas.
+              child: ScrollPorTeclado(
+                controller: _desplazamiento,
+                child: SingleChildScrollView(
+                  controller: _desplazamiento,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      KeyedSubtree(key: ValueKey(_ruta), child: _vista()),
+                      const _Pie(),
+                    ],
+                  ),
                 ),
               ),
             ),

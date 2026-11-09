@@ -1,16 +1,28 @@
 # Reservas SOA (FastAPI)
 
-Five independent FastAPI services that communicate over HTTP with JSON, one database per service (SQLite).
+Six independent FastAPI services that communicate over HTTP with JSON, one database per service (SQLite by default; SQL Server or Supabase/PostgreSQL with `DB_PROVIDER`).
 
 | Service | Port | Endpoints |
 |---|---|---|
 | S1 Usuarios | 5001 | `POST /api/usuarios` |
 | S2 Autenticación | 5002 | `POST /api/auth/login` |
-| S3 Vuelos | 5003 | `GET /api/vuelos?origen=&destino=&fecha=`, `GET /api/vuelos/{id}`, `GET /api/vuelos/{id}/asientos` (seat map), `POST /api/admin/vuelos` (admin) |
+| S3 Vuelos | 5003 | `GET /api/vuelos?origen=&destino=&fecha=`, `GET /api/vuelos/{id}`, `GET /api/vuelos/{id}/asientos` (seat map), `POST /api/admin/vuelos` (admin, takes `avionId`) |
 | S4 Reservas | 5004 | `POST /api/reservas` (Bearer, optional `asiento`) |
 | S5 Gestión de reservas | 5005 | `GET /api/reservas`, `DELETE /api/reservas/{id}` (Bearer) |
+| S6 Aviones | 5006 | `GET /api/admin/aviones`, `POST /api/admin/aviones`, `PUT /api/admin/aviones/{id}`, `PATCH /api/admin/aviones/{id}/estado` (admin) |
 
-Internal calls between services (not for clients): S3 `POST /api/internal/vuelos/{id}/asientos/reservar` (used by S4) and `POST /api/internal/reservas/{id}/liberar` (used by S5).
+Internal calls between services (not for clients): S3 `POST /api/internal/vuelos/{id}/asientos/reservar` (used by S4), `POST /api/internal/reservas/{id}/cancelar` (used by S5, applies the sale cutoff) and `POST /api/internal/reservas/{id}/liberar` (used by S4 to compensate a failed booking). S3 calls S6 `GET /api/internal/aviones/{id}` to read a plane's capacity.
+
+## Aircraft registry (S6)
+
+- **What a plane is**: a name (`nombre`, unique, for example `Airbus A320-200`) and a capacity (`capacidad`): its number of seats. The capacity follows the seat rules of the cabin: 18 to 180, a multiple of 6 (rows of 3 + 3).
+- **Register** (administrator token): `POST /api/admin/aviones` with `{"nombre": "ATR 72", "capacidad": 72}`. A duplicate name returns 409 `AVION_DUPLICADO`; a capacity outside the rules returns 400 `DATOS_INVALIDOS`.
+- **Edit**: `PUT /api/admin/aviones/{id}` replaces name and capacity. Changing the capacity affects only flights created afterwards: each flight keeps the seat map it was created with.
+- **Activate or deactivate**: `PATCH /api/admin/aviones/{id}/estado` with `{"activo": false}`. An inactive plane cannot be assigned to new flights (S3 answers 409 `AVION_INACTIVO`). Planes are not deleted, because flights may still use them.
+- **Creating a flight** (S3): `POST /api/admin/vuelos` takes `avionId` instead of `totalAsientos`. The flight's seats are the plane's capacity. The response includes `avionId`. Flights created before this change have `avionId: null` and keep their seat map; editing them requires choosing a plane.
+- **Configuration**: `AVIONES_SERVICE_URL` (default `http://localhost:5006`) in S3, `AVIONES_DB` (SQLite file, default `data/aviones.db`), SQL Server database `ReservasAviones`, PostgreSQL schema `aviones`.
+- **Supabase**: run `supabase/006_aviones.sql` after `005`. It creates the `aviones` schema and table, and adds `vuelos.vuelos.avion_id`.
+- **First administrator**: the API cannot create the first administrator. Put the email in `ADMIN_EMAILS` (comma-separated), register that account with `POST /api/usuarios`, and log in: the login promotes it. Without an administrator the "Crear vuelo" and "Aviones" controls are hidden in the client.
 
 ## Administrators and seat selection
 
@@ -18,10 +30,11 @@ Internal calls between services (not for clients): S3 `POST /api/internal/vuelos
 - **Bootstrap admins**: emails listed in `ADMIN_EMAILS` (comma-separated, set in `.env`) are always administrators. They are promoted at login and the API cannot demote them (409 `ADMIN_DE_CONFIGURACION`).
 - **Manage roles** (administrator token): `GET /api/admin/usuarios` lists accounts with their role; `PUT /api/admin/usuarios/{id}/rol` with `{"rol": "cliente" | "administrador"}` changes a role. The last administrator cannot be demoted (409 `ULTIMO_ADMINISTRADOR`). S1 checks the role in the database, so a demoted account loses access at once; S3 trusts the token claim until it expires (60 minutes).
 - **Passwords**: stored with bcrypt (cost 12). Passwords longer than 72 bytes are rejected at registration, because bcrypt ignores or rejects anything beyond that. Hashes created before bcrypt (PBKDF2) still work and are upgraded on the next successful login. Users do not need to reset their password.
-- **Create a flight** (admin token): `POST /api/admin/vuelos` with `{origen, destino, fecha, precio, filas, columnas}`. Origin and destination are 3-letter codes; `filas` is 1-50 and `columnas` is 1-8 (letters A to H). The response is 201 with the flight. Without a token it returns 401; with a client token it returns 403 (`PERMISO_DENEGADO`).
+- **Create a flight** (admin token): `POST /api/admin/vuelos` with `{origen, destino, fecha, precio, avionId}` (the plane's seats are the flight's seats; see the aircraft registry above). Origin and destination are 3-letter codes. The response is 201 with the flight. Without a token it returns 401; with a client token it returns 403 (`PERMISO_DENEGADO`).
 - **Seat map** (public): `GET /api/vuelos/{id}/asientos` returns `{vueloId, filas, columnas, asientosLibres, asientos: [{codigo, fila, columna, ocupado}]}`. Seat codes look like `12C`.
 - **Choose a seat**: `POST /api/reservas` accepts `"asiento": "12C"`. The seat is taken in S3 inside the same transaction as the reservation, so a seat taken by another passenger returns 409 `ASIENTO_OCUPADO`, an unknown seat returns 404 `ASIENTO_NO_EXISTE`, and no reservation is saved in either case. If `asiento` is omitted, the first free seat is assigned. The response includes `asiento`.
-- **Cancel**: `DELETE /api/reservas/{id}` frees the seat in S3 before marking the reservation as cancelled. If S3 is down, the cancellation fails with 503 and the reservation stays confirmed.
+- **Cancel**: `DELETE /api/reservas/{id}` frees the seat in S3 before marking the reservation as cancelled. If S3 is down, the cancellation fails with 503 and the reservation stays confirmed. If saving the cancellation fails after S3 freed the seat, S5 gives the seat back to the reservation and answers 503.
+- **Sale cutoff for changes**: cancelling and changing seat follow the same 3-hour cutoff as booking. Within 3 hours of departure both answer 409 `RESERVA_CERRADA` and the reservation keeps its seat.
 - Flights that existed before this change receive a seat map on startup, with as many seats as they had free, laid out in 6 columns (A to F).
 
 ## Passenger document and invoice
@@ -54,7 +67,8 @@ SQLSERVER_PASSWORD=
 ```
 
 - **SQLite** (default): one file per context under `data/`, created automatically.
-- **SQL Server**: three databases on the server, created automatically: `ReservasIdentidad` (S1, S2), `ReservasVuelos` (S3) and `ReservasReservas` (S4, S5). The login needs permission to create databases.
+- **SQL Server**: four databases on the server, created automatically: `ReservasIdentidad` (S1, S2), `ReservasVuelos` (S3), `ReservasReservas` (S4, S5) and `ReservasAviones` (S6). The login needs permission to create databases.
+- **Supabase (PostgreSQL)**: `DB_PROVIDER=postgres` and `DATABASE_URL`. Run `supabase/001` to `006` in order; each service uses its own schema (`identidad`, `vuelos`, `reservas`, `aviones`).
 - The automated tests always use SQLite. To verify SQL Server, run the services with `DB_PROVIDER=sqlserver` and repeat the request flow.
 
 ## Setup
@@ -98,6 +112,7 @@ python -m uvicorn autenticacion.main:app --port 5002
 python -m uvicorn vuelos.main:app --port 5003
 python -m uvicorn reservas.main:app --port 5004
 python -m uvicorn gestion.main:app --port 5005
+python -m uvicorn aviones.main:app --port 5006
 ```
 
 Start the flight service (S3) before S4 is used; S4 calls it at `FLIGHTS_SERVICE_URL` (default `http://localhost:5003`).
@@ -112,7 +127,7 @@ python -m http.server 8080 --directory cliente
 
 Open `http://localhost:8080`. The bottom panel logs every request and response. Allowed origins are set with `CORS_ORIGINS` (comma-separated, default `http://localhost:8080,http://127.0.0.1:8080`).
 
-Optional environment variables: `IDENTITY_DB`, `FLIGHTS_DB`, `BOOKINGS_DB` (SQLite file paths, default under `data/`), `JWT_SECRET`, `FLIGHTS_SERVICE_URL`, `CORS_ORIGINS`, `CORS_ORIGIN_REGEX`, `ADMIN_EMAILS`.
+Optional environment variables: `IDENTITY_DB`, `FLIGHTS_DB`, `BOOKINGS_DB`, `AVIONES_DB` (SQLite file paths, default under `data/`), `JWT_SECRET`, `FLIGHTS_SERVICE_URL`, `AVIONES_SERVICE_URL`, `CORS_ORIGINS`, `CORS_ORIGIN_REGEX`, `ADMIN_EMAILS`.
 
 ## Error contract
 

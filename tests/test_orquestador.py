@@ -16,11 +16,12 @@ def estado_tmp(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_la_consola_gestiona_el_gateway_y_los_cinco_servicios():
+def test_la_consola_gestiona_el_gateway_y_los_seis_servicios():
     claves = [s.clave for s in SERVICIOS]
-    assert claves == ["gateway", "usuarios", "autenticacion", "vuelos", "reservas", "gestion"]
+    assert claves == ["gateway", "usuarios", "autenticacion", "vuelos", "reservas", "gestion", "aviones"]
     assert buscar("gateway").puerto == 8000
-    assert {s.puerto for s in SERVICIOS if s.clave != "gateway"} == {5001, 5002, 5003, 5004, 5005}
+    assert {s.puerto for s in SERVICIOS if s.clave != "gateway"} == {5001, 5002, 5003, 5004, 5005, 5006}
+    assert buscar("aviones").desactivable is True
 
 
 def test_desactivar_marca_el_servicio_y_detiene_su_proceso(estado_tmp, monkeypatch):

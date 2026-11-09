@@ -1,10 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
 from gestion import main as gestion_main
 from gestion.main import app as gestion_app
 from reservas import main as reservas_main
 from reservas.main import app as reservas_app
+from shared.errors import ApiError
 from shared.security import create_token
 
 reservas = TestClient(reservas_app)
@@ -19,7 +22,8 @@ def _asientos_en_vuelos(monkeypatch):
         "reservar_lote_s3",
         lambda vuelo_id, items: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
     )
-    monkeypatch.setattr(gestion_main, "liberar_asientos", lambda reserva_id: None)
+    monkeypatch.setattr(gestion_main, "cancelar_asientos_s3", lambda vuelo_id, reserva_id: None)
+    monkeypatch.setattr(gestion_main, "restaurar_asiento_s3", lambda vuelo_id, reserva_id, asiento: None)
 
 
 def _auth(email: str) -> dict:
@@ -60,6 +64,48 @@ def test_cancelar_dos_veces_devuelve_409(monkeypatch):
     response = gestion.delete(f"/api/reservas/{reserva_id}", headers=_auth("doble@correo.com"))
     assert response.status_code == 409
     assert response.json()["codigo"] == "RESERVA_YA_CANCELADA"
+
+
+def test_cancelar_fuera_del_corte_pide_liberar_el_asiento_con_su_vuelo(monkeypatch):
+    reserva_id = _reservar("vuelo-cancela@correo.com", monkeypatch)
+    llamadas = []
+    monkeypatch.setattr(gestion_main, "cancelar_asientos_s3", lambda vuelo_id, reserva_id: llamadas.append((vuelo_id, reserva_id)))
+    gestion.delete(f"/api/reservas/{reserva_id}", headers=_auth("vuelo-cancela@correo.com"))
+    assert llamadas == [(1, reserva_id)]
+
+
+def test_cancelar_dentro_del_corte_devuelve_409_y_la_reserva_sigue_confirmada(monkeypatch):
+    reserva_id = _reservar("corte-cancela@correo.com", monkeypatch)
+
+    def rechazo_por_corte(vuelo_id, reserva_id):
+        raise ApiError(409, "RESERVA_CERRADA", "La venta de este vuelo cerró 3 horas antes de la salida.")
+
+    monkeypatch.setattr(gestion_main, "cancelar_asientos_s3", rechazo_por_corte)
+    response = gestion.delete(f"/api/reservas/{reserva_id}", headers=_auth("corte-cancela@correo.com"))
+
+    assert response.status_code == 409
+    assert response.json()["codigo"] == "RESERVA_CERRADA"
+    assert gestion.get(f"/api/reservas/{reserva_id}", headers=_auth("corte-cancela@correo.com")).json()["estado"] == "confirmada"
+
+
+def test_si_falla_guardar_la_cancelacion_se_restaura_el_asiento_en_s3(monkeypatch):
+    reserva_id = _reservar("compensa-cancela@correo.com", monkeypatch)
+    restaurados = []
+    monkeypatch.setattr(
+        gestion_main,
+        "restaurar_asiento_s3",
+        lambda vuelo_id, reserva_id, asiento: restaurados.append((vuelo_id, reserva_id, asiento)),
+    )
+
+    def fallo_al_guardar(self):
+        raise OperationalError("COMMIT", {}, Exception("conexión perdida"))
+
+    monkeypatch.setattr(Session, "commit", fallo_al_guardar)
+    response = gestion.delete(f"/api/reservas/{reserva_id}", headers=_auth("compensa-cancela@correo.com"))
+
+    assert response.status_code == 503
+    assert response.json()["codigo"] == "SERVICIO_NO_DISPONIBLE"
+    assert restaurados == [(1, reserva_id, "1A")]
 
 
 def test_cancelar_reserva_ajena_devuelve_404(monkeypatch):
