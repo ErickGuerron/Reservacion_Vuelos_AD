@@ -452,11 +452,13 @@ class _AdminVueloDialogState extends State<AdminVueloDialog> {
         ],
         if (!_editando) ...[
           const SizedBox(height: AppSpacing.md),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerLow,
+          // Material (no Container con color): el ListTile pinta su toque sobre el Material más cercano.
+          Material(
+            color: AppColors.surfaceContainerLow,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.surfaceVariant),
+              side: BorderSide(color: AppColors.surfaceVariant),
             ),
             child: SwitchListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

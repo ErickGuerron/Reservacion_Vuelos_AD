@@ -7,6 +7,7 @@ import '../core/models.dart';
 import '../core/services.dart';
 import '../core/validadores.dart';
 import '../theme/app_theme.dart';
+import '../widgets/scroll_por_teclado.dart';
 import 'mapa_asientos.dart';
 
 enum _Estado { listo, enviando, ok, error }
@@ -115,7 +116,7 @@ class _ReservaDialogState extends State<ReservaDialog> {
 
     final pasajero = await showDialog<_Pasajero>(
       context: context,
-      builder: (_) => _DialogoPasajero(codigo: a.codigo, vuelo: widget.vuelo),
+      builder: (_) => ScrollDialogo(child: _DialogoPasajero(codigo: a.codigo, vuelo: widget.vuelo)),
     );
     if (pasajero == null || !mounted) return;
     setState(() {

@@ -1,5 +1,6 @@
 import 'package:aerovuelo_app/core/models.dart';
 import 'package:aerovuelo_app/core/validadores.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -61,6 +62,32 @@ void main() {
       expect(validarNombreAvion(' ATR 72'), isNotNull);
       expect(validarNombreAvion('ATR  72'), isNotNull);
       expect(validarNombreAvion('Avion ✈'), isNotNull);
+    });
+
+    test('rechaza la letra ñ y las emojis', () {
+      expect(validarNombreAvion('Piña Jet'), isNotNull);
+      expect(validarNombreAvion('AÑO 2030'), isNotNull);
+      expect(validarNombreAvion('Avion 😀'), isNotNull);
+    });
+  });
+
+  group('NombreAvionFormatter', () {
+    String escribir(String texto) => NombreAvionFormatter()
+        .formatEditUpdate(TextEditingValue.empty, TextEditingValue(text: texto, selection: TextSelection.collapsed(offset: texto.length)))
+        .text;
+
+    test('quita la ñ mientras se escribe', () {
+      expect(escribir('Piña'), 'Pia');
+      expect(escribir('AÑO'), 'AO');
+    });
+
+    test('quita emojis y símbolos mientras se escribe', () {
+      expect(escribir('Avion 😀'), 'Avion ');
+      expect(escribir('ATR ✈ 72'), 'ATR 72');
+    });
+
+    test('deja pasar letras sin ñ, números y guion', () {
+      expect(escribir('Airbus A320-200'), 'Airbus A320-200');
     });
   });
 }

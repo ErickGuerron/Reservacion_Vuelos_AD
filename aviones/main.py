@@ -36,7 +36,11 @@ class AvionIn(BaseModel):
     @field_validator("nombre")
     @classmethod
     def _nombre_valido(cls, valor: str) -> str:
-        return validar_texto(valor, "nombre", minimo=2, maximo=60)
+        valor = validar_texto(valor, "nombre", minimo=2, maximo=60)
+        # Los nombres de avión se escriben sin ñ (y sin emojis, que validar_texto ya rechaza).
+        if "ñ" in valor.lower():
+            raise ValueError("El nombre del avión no puede contener la letra ñ.")
+        return valor
 
     @field_validator("capacidad", mode="before")
     @classmethod

@@ -63,8 +63,24 @@ String? validarNombreAvion(String? valor) {
   final error = _bordesYEspacios(v, 'El nombre del avión');
   if (error != null) return error;
   if (v.length < 2 || v.length > 60) return 'El nombre del avión debe tener entre 2 y 60 caracteres.';
+  if (v.toLowerCase().contains('ñ')) return 'El nombre del avión no puede contener la letra ñ.';
   if (!_textoAvionRe.hasMatch(v)) return 'El nombre del avión solo puede tener letras, números, espacios y signos básicos.';
   return null;
+}
+
+// Filtra lo que se escribe en el nombre del avión: sin ñ, sin emojis ni símbolos, máximo 60 caracteres.
+// Lo que no cumple no aparece, así que el usuario no llega a escribirlo.
+class NombreAvionFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue anterior, TextEditingValue nuevo) {
+    return _filtrar(
+      nuevo,
+      permitido: (c) => c != 'ñ' && c != 'Ñ' && _textoAvionRe.hasMatch(c),
+      espaciosSimples: true,
+      sinEspacioInicial: true,
+      maximo: 60,
+    );
+  }
 }
 
 String? validarPrecio(String? valor) {

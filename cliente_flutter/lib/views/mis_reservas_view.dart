@@ -7,6 +7,7 @@ import '../core/models.dart';
 import '../core/services.dart';
 import '../core/session.dart';
 import '../theme/app_theme.dart';
+import '../widgets/scroll_por_teclado.dart';
 import 'cambiar_asiento_dialog.dart';
 import 'factura_archivos.dart';
 import 'factura_dialog.dart';
@@ -137,7 +138,7 @@ class _MisReservasViewState extends State<MisReservasView> {
     if (token == null) return;
     final nuevo = await showDialog<String>(
       context: context,
-      builder: (_) => CambiarAsientoDialog(reserva: reserva, token: token),
+      builder: (_) => ScrollDialogo(child: CambiarAsientoDialog(reserva: reserva, token: token)),
     );
     if (nuevo == null) return;
     _toast('Asiento de ${reserva.pasajero} cambiado a $nuevo.');
@@ -178,12 +179,14 @@ class _MisReservasViewState extends State<MisReservasView> {
     if (token == null || loteId == null) return;
     showDialog<void>(
       context: context,
-      builder: (_) => FacturaDialog(
-        loteId: loteId,
-        token: token,
-        grupo: grupo,
-        vuelo: _vuelos[grupo.vueloId],
-        correo: session.email,
+      builder: (_) => ScrollDialogo(
+        child: FacturaDialog(
+          loteId: loteId,
+          token: token,
+          grupo: grupo,
+          vuelo: _vuelos[grupo.vueloId],
+          correo: session.email,
+        ),
       ),
     );
   }

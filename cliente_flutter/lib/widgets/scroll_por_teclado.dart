@@ -19,6 +19,35 @@ class ScrollPorTeclado extends StatefulWidget {
   State<ScrollPorTeclado> createState() => _ScrollPorTecladoState();
 }
 
+// Envuelve un diálogo (cada uno es una ruta aparte, fuera de la página). Su contenido desplazable
+// usa el controlador de este widget como scroll principal, y las flechas lo mueven igual que en la página.
+class ScrollDialogo extends StatefulWidget {
+  const ScrollDialogo({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<ScrollDialogo> createState() => _ScrollDialogoState();
+}
+
+class _ScrollDialogoState extends State<ScrollDialogo> {
+  final _controlador = ScrollController();
+
+  @override
+  void dispose() {
+    _controlador.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScrollPorTeclado(
+      controller: _controlador,
+      child: PrimaryScrollController(controller: _controlador, child: widget.child),
+    );
+  }
+}
+
 class _ScrollPorTecladoState extends State<ScrollPorTeclado> {
   final _foco = FocusNode(debugLabel: 'desplazamiento-por-teclado');
 

@@ -7,6 +7,7 @@ import '../core/validadores.dart';
 import '../theme/app_theme.dart';
 import '../widgets/alerta.dart';
 import '../widgets/plano_formulario.dart';
+import '../widgets/scroll_por_teclado.dart';
 
 // Registro de aviones (solo administradores). Cada avión tiene nombre y capacidad: su número de asientos.
 // Lista: GET /api/admin/aviones. Alta: POST. Edición: PUT. Activar o desactivar: PATCH .../estado (S6).
@@ -46,7 +47,7 @@ class _AvionesDialogState extends State<AvionesDialog> {
   Future<void> _formulario({Avion? avion}) async {
     final guardado = await showDialog<bool>(
       context: context,
-      builder: (_) => _FormularioAvion(token: widget.token, avion: avion),
+      builder: (_) => ScrollDialogo(child: _FormularioAvion(token: widget.token, avion: avion)),
     );
     if (guardado == true) await _cargar();
   }
@@ -247,6 +248,7 @@ class _FormularioAvionState extends State<_FormularioAvion> {
           hijo: TextFormField(
             controller: _nombre,
             maxLength: 60,
+            inputFormatters: [NombreAvionFormatter()],
             decoration: const InputDecoration(labelText: 'Nombre del avión', hintText: 'Airbus A320-200'),
             validator: validarNombreAvion,
           ),

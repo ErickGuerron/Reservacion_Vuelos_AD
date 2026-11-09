@@ -13,6 +13,7 @@ import '../widgets/hub_estaciones.dart';
 import 'acciones_admin_vuelo.dart';
 import 'admin_vuelo_dialog.dart';
 import 'aviones_dialog.dart';
+import '../widgets/scroll_por_teclado.dart';
 import 'reserva_dialog.dart';
 
 const _ciudades = {'UIO': 'Quito', 'GYE': 'Guayaquil', 'MAD': 'Madrid'};
@@ -192,7 +193,7 @@ class _VuelosViewState extends State<VuelosView> {
     if (token == null) return;
     final guardado = await showDialog<bool>(
       context: context,
-      builder: (_) => AdminVueloDialog(token: token, vuelo: vuelo),
+      builder: (_) => ScrollDialogo(child: AdminVueloDialog(token: token, vuelo: vuelo)),
     );
     if (guardado != true || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Vuelo #${vuelo.id} actualizado.')));
@@ -219,7 +220,7 @@ class _VuelosViewState extends State<VuelosView> {
   Future<void> _gestionarAviones() async {
     final token = session.token;
     if (token == null) return;
-    await showDialog<void>(context: context, builder: (_) => AvionesDialog(token: token));
+    await showDialog<void>(context: context, builder: (_) => ScrollDialogo(child: AvionesDialog(token: token)));
   }
 
   // Alta de vuelo: solo visible para administradores (el servidor vuelve a validar el rol).
@@ -228,7 +229,7 @@ class _VuelosViewState extends State<VuelosView> {
     if (token == null) return;
     final creado = await showDialog<bool>(
       context: context,
-      builder: (_) => AdminVueloDialog(token: token),
+      builder: (_) => ScrollDialogo(child: AdminVueloDialog(token: token)),
     );
     if (creado != true || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vuelo creado con su mapa de asientos.')));
@@ -244,7 +245,7 @@ class _VuelosViewState extends State<VuelosView> {
     }
     showDialog<void>(
       context: context,
-      builder: (_) => ReservaDialog(vuelo: vuelo, token: token),
+      builder: (_) => ScrollDialogo(child: ReservaDialog(vuelo: vuelo, token: token)),
     );
   }
 

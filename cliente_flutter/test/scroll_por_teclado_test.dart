@@ -45,6 +45,39 @@ void main() {
     expect(controlador.offset, lessThan(bajado));
   });
 
+  testWidgets('un diálogo abierto también baja con las flechas', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => ScrollDialogo(
+                  child: Dialog(
+                    child: SizedBox(
+                      height: 300,
+                      child: SingleChildScrollView(child: const SizedBox(height: 3000, width: 300)),
+                    ),
+                  ),
+                ),
+              ),
+              child: const Text('abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+
+    final posicion = tester.state<ScrollableState>(find.byType(Scrollable).last).position;
+    expect(posicion.pixels, greaterThan(0));
+  });
+
   testWidgets('no se sale de los límites de la página', (tester) async {
     final controlador = await pumpPagina(tester);
 

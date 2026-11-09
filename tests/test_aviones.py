@@ -55,6 +55,15 @@ def test_nombre_con_simbolos_no_permitidos_devuelve_400():
     assert response.json()["errores"][0]["campo"] == "nombre"
 
 
+@pytest.mark.parametrize("nombre", ["Piña Jet", "AÑO 2030", "Avion 😀"])
+def test_nombre_con_enie_o_emoji_devuelve_400(nombre):
+    response = _alta(nombre, 18)
+
+    assert response.status_code == 400
+    assert response.json()["codigo"] == "DATOS_INVALIDOS"
+    assert response.json()["errores"][0]["campo"] == "nombre"
+
+
 def test_nombre_duplicado_devuelve_409():
     assert _alta("Dup Avion", 18).status_code == 201
 
