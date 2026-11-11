@@ -89,13 +89,17 @@ class VuelosService {
   }
 
   // GET /api/vuelos/{id}/asientos (S3): disponibilidad real de cada asiento.
-  static Future<List<AsientoRemoto>> mapa(int vueloId) async {
+  static Future<List<AsientoRemoto>> mapa(int vueloId) async => (await mapaConVersion(vueloId)).asientos;
+
+  // Igual que mapa(), pero también devuelve la versión del mapa: se envía al reservar para detectar cambios.
+  static Future<({int version, List<AsientoRemoto> asientos})> mapaConVersion(int vueloId) async {
     final respuesta = await ApiClient.enviar('GET', Uri.parse('${ApiConfig.vuelos}/api/vuelos/$vueloId/asientos'));
     if (!respuesta.ok) {
       throw ApiException(respuesta.mensaje ?? 'No se pudo cargar el mapa de asientos.', status: respuesta.status);
     }
-    final asientos = (respuesta.cuerpo as Map)['asientos'] as List;
-    return asientos.map((a) => AsientoRemoto.fromJson(a as Map<String, dynamic>)).toList();
+    final cuerpo = respuesta.cuerpo as Map;
+    final asientos = (cuerpo['asientos'] as List).map((a) => AsientoRemoto.fromJson(a as Map<String, dynamic>)).toList();
+    return (version: (cuerpo['version'] as num? ?? 0).toInt(), asientos: asientos);
   }
 
   // GET /api/vuelos/{id} (S3). Devuelve null si el vuelo ya no existe.
@@ -134,6 +138,7 @@ class ReservasService {
     required int vueloId,
     required List<({String pasajero, String asiento, String tipoDocumento, String documento})> reservas,
     required String token,
+    int? versionMapa,
   }) async {
     final respuesta = await ApiClient.enviar(
       'POST',
@@ -141,6 +146,7 @@ class ReservasService {
       cabeceras: {'Authorization': 'Bearer $token'},
       cuerpo: {
         'vueloId': vueloId,
+        'versionMapa': ?versionMapa,
         'reservas': [
           for (final r in reservas)
             {'pasajero': r.pasajero, 'asiento': r.asiento, 'tipoDocumento': r.tipoDocumento, 'documento': r.documento},
@@ -148,7 +154,8 @@ class ReservasService {
       },
     );
     if (respuesta.status != 201) {
-      throw ApiException(respuesta.mensaje ?? 'No se pudo crear la reserva.', status: respuesta.status);
+      final codigo = respuesta.cuerpo is Map ? (respuesta.cuerpo as Map)['codigo'] as String? : null;
+      throw ApiException(respuesta.mensaje ?? 'No se pudo crear la reserva.', status: respuesta.status, codigo: codigo);
     }
     return (respuesta.cuerpo as List).map((r) => Reserva.fromJson(r as Map<String, dynamic>)).toList();
   }
@@ -180,15 +187,16 @@ class ReservasService {
   }
 
   // PUT /api/reservas/{id}/asiento (S4): mueve la reserva propia a otro asiento libre.
-  static Future<String> cambiarAsiento({required int id, required String asiento, required String token}) async {
+  static Future<String> cambiarAsiento({required int id, required String asiento, required String token, int? versionMapa}) async {
     final respuesta = await ApiClient.enviar(
       'PUT',
       Uri.parse('${ApiConfig.reservas}/api/reservas/$id/asiento'),
       cabeceras: {'Authorization': 'Bearer $token'},
-      cuerpo: {'asiento': asiento},
+      cuerpo: {'asiento': asiento, 'versionMapa': ?versionMapa},
     );
     if (!respuesta.ok) {
-      throw ApiException(respuesta.mensaje ?? 'No se pudo cambiar el asiento.', status: respuesta.status);
+      final codigo = respuesta.cuerpo is Map ? (respuesta.cuerpo as Map)['codigo'] as String? : null;
+      throw ApiException(respuesta.mensaje ?? 'No se pudo cambiar el asiento.', status: respuesta.status, codigo: codigo);
     }
     return (respuesta.cuerpo as Map)['asiento'] as String;
   }

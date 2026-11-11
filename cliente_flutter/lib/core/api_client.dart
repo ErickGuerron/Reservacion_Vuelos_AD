@@ -58,8 +58,10 @@ class ApiResponse {
 }
 
 class ApiException implements Exception {
-  ApiException(this.mensaje, {this.status});
+  ApiException(this.mensaje, {this.status, this.codigo});
   final String mensaje;
+  // Código de error del servicio (cuerpo.codigo), por ejemplo ASIENTO_OCUPADO o MAPA_DESACTUALIZADO.
+  final String? codigo;
   final int? status;
   @override
   String toString() => mensaje;

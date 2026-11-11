@@ -7,11 +7,12 @@ import '../core/models.dart';
 import '../core/services.dart';
 import '../core/validadores.dart';
 import '../theme/app_theme.dart';
+import '../widgets/alerta.dart';
 import '../widgets/alerta_exito.dart';
 import '../widgets/scroll_por_teclado.dart';
 import 'mapa_asientos.dart';
 
-enum _Estado { listo, enviando, ok, error }
+enum _Estado { listo, enviando, ok, error, aviso }
 
 // Lo que se pide por cada asiento: quién viaja y su documento.
 typedef _Pasajero = ({String nombre, String tipo, String documento});
@@ -31,6 +32,8 @@ class ReservaDialog extends StatefulWidget {
 class _ReservaDialogState extends State<ReservaDialog> {
   final TransformationController _zoom = TransformationController();
   List<Asiento> _asientos = const [];
+  // Versión del mapa que este formulario muestra: se envía al confirmar para detectar cambios.
+  int _version = 0;
   bool _cargandoMapa = true;
   // Nombre de cada asiento que este cliente tiene elegido o ya confirmó.
   final Map<String, String> _nombres = {};
@@ -64,9 +67,9 @@ class _ReservaDialogState extends State<ReservaDialog> {
   Future<void> _cargarMapa() async {
     setState(() => _cargandoMapa = true);
     try {
-      final remotos = await VuelosService.mapa(widget.vuelo.id);
+      final mapa = await VuelosService.mapaConVersion(widget.vuelo.id);
       if (!mounted) return;
-      final nuevos = asientosDesde(remotos);
+      final nuevos = asientosDesde(mapa.asientos);
       final perdidos = <String>[];
       for (final a in nuevos) {
         final nombre = _nombres[a.codigo];
@@ -85,6 +88,7 @@ class _ReservaDialogState extends State<ReservaDialog> {
       }
       setState(() {
         _asientos = nuevos;
+        _version = mapa.version;
         _cargandoMapa = false;
         if (perdidos.isNotEmpty) {
           _mensaje = 'El asiento ${perdidos.join(', ')} ya fue tomado por otro pasajero. Elija otro.';
@@ -148,6 +152,7 @@ class _ReservaDialogState extends State<ReservaDialog> {
             ),
         ],
         token: widget.token,
+        versionMapa: _version,
       );
       if (!mounted) return;
       setState(() {
@@ -166,6 +171,18 @@ class _ReservaDialogState extends State<ReservaDialog> {
       Navigator.of(context).pop();
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (e.codigo == 'MAPA_DESACTUALIZADO') {
+        // Otro pasajero cambió el vuelo mientras elegía: se recarga el mapa y se conservan las selecciones libres.
+        await _cargarMapa();
+        if (!mounted) return;
+        final detalle = _estado == _Estado.error ? ' $_mensaje' : '';
+        setState(() {
+          _mensaje =
+              'El mapa de asientos cambió: otro pasajero reservó asientos de este vuelo. Conservamos sus selecciones que siguen libres; revise el mapa y confirme de nuevo.$detalle';
+          _estado = _Estado.aviso;
+        });
+        return;
+      }
       if (e.status == 409) {
         // Algún asiento ya fue tomado: se refresca el mapa para que el cliente elija de nuevo.
         await _cargarMapa();
@@ -284,6 +301,10 @@ class _ReservaDialogState extends State<ReservaDialog> {
                           borderColor: AppColors.errorBorder,
                           child: Text(_mensaje, style: AppTheme.bodySm(color: AppColors.errorText)),
                         ),
+                      ],
+                      if (_estado == _Estado.aviso) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Alerta(tipo: TipoAlerta.aviso, texto: _mensaje),
                       ],
                     ],
                   ),

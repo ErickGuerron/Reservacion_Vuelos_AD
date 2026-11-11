@@ -4,6 +4,7 @@ import '../core/api_client.dart';
 import '../core/models.dart';
 import '../core/services.dart';
 import '../theme/app_theme.dart';
+import '../widgets/alerta.dart';
 import 'mapa_asientos.dart';
 
 // Cambia el asiento de una reserva propia: PUT /api/reservas/{id}/asiento (S4).
@@ -24,7 +25,10 @@ class _CambiarAsientoDialogState extends State<CambiarAsientoDialog> {
   bool _cargando = true;
   bool _guardando = false;
   String? _nuevo; // asiento libre elegido para la reserva
+  // Versión del mapa que muestra este formulario: se envía al confirmar para detectar cambios.
+  int _version = 0;
   String _mensaje = '';
+  bool _avisoMapa = false; // true cuando el mapa cambió: se muestra como aviso, no como error
 
   String? get _actual => widget.reserva.asiento;
 
@@ -43,9 +47,9 @@ class _CambiarAsientoDialogState extends State<CambiarAsientoDialog> {
   Future<void> _cargarMapa() async {
     setState(() => _cargando = true);
     try {
-      final remotos = await VuelosService.mapa(widget.reserva.vueloId);
+      final mapa = await VuelosService.mapaConVersion(widget.reserva.vueloId);
       if (!mounted) return;
-      final nuevos = asientosDesde(remotos);
+      final nuevos = asientosDesde(mapa.asientos);
       for (final a in nuevos) {
         // Solo el asiento de esta reserva lleva nombre: es del propio cliente.
         if (a.codigo == _actual) {
@@ -55,11 +59,13 @@ class _CambiarAsientoDialogState extends State<CambiarAsientoDialog> {
       }
       setState(() {
         _asientos = nuevos;
+        _version = mapa.version;
         _cargando = false;
-        // Si el elegido ya no está libre, se descarta.
+        // Si el elegido ya no está libre, se descarta. Si sigue libre, se conserva.
         if (_nuevo != null && nuevos.any((a) => a.codigo == _nuevo && a.estado == EstadoAsiento.reservado)) {
           _nuevo = null;
           _mensaje = 'El asiento elegido ya fue tomado por otro pasajero. Elija otro.';
+          _avisoMapa = false;
         }
       });
     } on ApiException catch (e) {
@@ -97,13 +103,31 @@ class _CambiarAsientoDialogState extends State<CambiarAsientoDialog> {
       _mensaje = '';
     });
     try {
-      final asiento = await ReservasService.cambiarAsiento(id: widget.reserva.id, asiento: nuevo, token: widget.token);
+      final asiento = await ReservasService.cambiarAsiento(
+        id: widget.reserva.id,
+        asiento: nuevo,
+        token: widget.token,
+        versionMapa: _version,
+      );
       if (!mounted) return;
       Navigator.of(context).pop(asiento);
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (e.codigo == 'MAPA_DESACTUALIZADO') {
+        // Otro pasajero cambió el vuelo: se recarga el mapa y se conserva el asiento elegido si sigue libre.
+        setState(() => _guardando = false);
+        await _cargarMapa();
+        if (!mounted) return;
+        setState(() {
+          _avisoMapa = true;
+          _mensaje =
+              'El mapa de asientos cambió: otro pasajero reservó asientos de este vuelo. Revise el mapa y confirme de nuevo.';
+        });
+        return;
+      }
       setState(() {
         _guardando = false;
+        _avisoMapa = false;
         _mensaje = e.status == 409 ? 'El asiento $nuevo ya fue tomado por otro pasajero. Elija otro.' : e.mensaje;
       });
       if (e.status == 409) await _cargarMapa();
@@ -173,7 +197,11 @@ class _CambiarAsientoDialogState extends State<CambiarAsientoDialog> {
                         _nuevo == null ? 'Ningún asiento nuevo seleccionado.' : 'Nuevo asiento: $_nuevo',
                         style: AppTheme.bodyMd().copyWith(fontWeight: FontWeight.w600),
                       ),
-                      if (_mensaje.isNotEmpty) ...[
+                      if (_mensaje.isNotEmpty && _avisoMapa) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        Alerta(tipo: TipoAlerta.aviso, texto: _mensaje),
+                      ],
+                      if (_mensaje.isNotEmpty && !_avisoMapa) ...[
                         const SizedBox(height: AppSpacing.md),
                         Container(
                           padding: const EdgeInsets.all(AppSpacing.md),
