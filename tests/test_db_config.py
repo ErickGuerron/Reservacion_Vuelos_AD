@@ -56,6 +56,49 @@ def test_postgres_usa_la_url_de_supabase_y_un_esquema_por_contexto(monkeypatch):
     assert db.postgres_connect_args("identidad") == {"options": "-csearch_path=identidad"}
 
 
+def test_cada_conexion_postgres_fija_el_esquema_con_set_search_path():
+    # El pooler de Supabase ignora la opción de arranque -csearch_path: el esquema se fija al conectar.
+    class _Cursor:
+        def __init__(self, ejecutadas):
+            self.ejecutadas = ejecutadas
+
+        def execute(self, sentencia):
+            self.ejecutadas.append(sentencia)
+
+        def close(self):
+            pass
+
+    class _Conexion:
+        def __init__(self):
+            self.ejecutadas = []
+            self.confirmada = False
+
+        def cursor(self):
+            return _Cursor(self.ejecutadas)
+
+        def commit(self):
+            self.confirmada = True
+
+    conexion = _Conexion()
+    db._fijar_esquema_al_conectar("vuelos")(conexion, None)
+    assert conexion.ejecutadas == ["SET search_path TO vuelos"]
+    # Sin commit, el SET queda en una transacción que SQLAlchemy deshace al devolver la conexión al pool.
+    assert conexion.confirmada
+
+
+def test_engines_postgres_no_superan_el_limite_del_pooler(monkeypatch):
+    # El pooler de Supabase en modo sesión admite 15 clientes en total. Cada engine usa a lo sumo una conexión.
+    monkeypatch.setenv("DB_PROVIDER", "postgres")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres:clave@db.ejemplo.supabase.co:5432/postgres")
+    engine, _ = db.session_factory("vuelos")
+    assert engine.pool.size() == 1
+    assert engine.pool._max_overflow == 0
+    # Sin ping previo en cada préstamo (un SELECT 1 más por petición, con ~170 ms por viaje a Supabase).
+    # Un reciclado periódico evita usar conexiones que el pooler ya cerró.
+    assert not engine.pool._pre_ping
+    assert 0 < engine.pool._recycle <= 300
+
+
 def test_postgres_sin_database_url_falla_con_mensaje_claro(monkeypatch):
     monkeypatch.setenv("DB_PROVIDER", "postgres")
     monkeypatch.delenv("DATABASE_URL", raising=False)

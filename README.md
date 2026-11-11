@@ -68,7 +68,9 @@ SQLSERVER_PASSWORD=
 
 - **SQLite** (default): one file per context under `data/`, created automatically.
 - **SQL Server**: four databases on the server, created automatically: `ReservasIdentidad` (S1, S2), `ReservasVuelos` (S3), `ReservasReservas` (S4, S5) and `ReservasAviones` (S6). The login needs permission to create databases.
-- **Supabase (PostgreSQL)**: `DB_PROVIDER=postgres` and `DATABASE_URL`. Run `supabase/001` to `006` in order; each service uses its own schema (`identidad`, `vuelos`, `reservas`, `aviones`).
+- **Supabase (PostgreSQL)**: `DB_PROVIDER=postgres` and `DATABASE_URL`. Run `supabase/001` to `009` in order; each service uses its own schema (`identidad`, `vuelos`, `reservas`, `aviones`). Each connection sets its schema with `SET search_path`, because the Supabase pooler ignores the startup option. Each engine keeps one connection (the session pooler allows 15 clients per project); `DB_POOL_SIZE` overrides it.
+- **Concurrency**: seats are claimed with conditional `UPDATE`s, a partial unique index keeps one seat per booking (`007`), and cancellations and seat changes lock their row with `SELECT ... FOR UPDATE`. A booking is stored as `pendiente` before S3 takes the seats and becomes `confirmada` after, so no transaction stays open during the HTTP call to S3.
+- **Seat map version** (`009`): `vuelos.vuelos.version` goes up with every seat change. `GET /api/vuelos/{id}/asientos` returns `version`; send it as `versionMapa` when reserving or changing a seat. A stale version gets `409 MAPA_DESACTUALIZADO` and nothing is taken; the client reloads the map and keeps the seats that are still free.
 - The automated tests always use SQLite. To verify SQL Server, run the services with `DB_PROVIDER=sqlserver` and repeat the request flow.
 
 ## Setup

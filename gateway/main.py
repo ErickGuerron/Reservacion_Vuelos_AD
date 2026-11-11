@@ -52,7 +52,8 @@ _cliente: httpx.AsyncClient | None = None
 def cliente_http() -> httpx.AsyncClient:
     global _cliente
     if _cliente is None:
-        _cliente = httpx.AsyncClient(timeout=10)
+        # 30 s: una reserva tarda ~10 s con Supabase; con un corte menor el cliente recibe 503 y S4 guarda igual.
+        _cliente = httpx.AsyncClient(timeout=30)
     return _cliente
 
 

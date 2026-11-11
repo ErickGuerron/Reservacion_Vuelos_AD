@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from reservas import main as reservas_main
 from reservas.main import app
+from shared.models import ReservaAsiento
 from shared.security import create_token
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -21,14 +22,19 @@ def test_si_s4_no_puede_guardar_se_liberan_los_asientos_en_s3(monkeypatch):
     monkeypatch.setattr(
         reservas_main,
         "reservar_lote_s3",
-        lambda vuelo_id, items: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
+        lambda vuelo_id, items, version=None: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
     )
     monkeypatch.setattr(reservas_main, "liberar_reservas_s3", lambda ids: liberados.extend(ids))
 
-    def _falla_al_guardar(self):
-        raise RuntimeError("disco lleno")
+    original_commit = Session.commit
 
-    monkeypatch.setattr(Session, "commit", _falla_al_guardar)
+    def _falla_al_confirmar_asientos(self):
+        # Solo falla el commit que guarda los asientos, que es posterior a la respuesta de S3.
+        if any(isinstance(obj, ReservaAsiento) for obj in self.new):
+            raise RuntimeError("disco lleno")
+        return original_commit(self)
+
+    monkeypatch.setattr(Session, "commit", _falla_al_confirmar_asientos)
 
     response = client.post(
         "/api/reservas/lote",

@@ -191,9 +191,11 @@ def consultar_reserva(reserva_id: int, email: str = Depends(current_cliente_emai
 )
 def cancelar_reserva(reserva_id: int, email: str = Depends(current_cliente_email)):
     with SessionLocal() as db:
+        # Bloquea la reserva: dos cancelaciones simultáneas no pasan ambas el chequeo de estado.
         reserva = (
             db.query(Reserva)
             .filter(Reserva.id == reserva_id, Reserva.usuario_email == email)
+            .with_for_update()
             .first()
         )
         if reserva is None:

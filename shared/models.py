@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -64,6 +64,9 @@ class Vuelo(Base):
     hora_llegada: Mapped[str | None] = mapped_column(String(5), nullable=True)
     # Avión asignado (S6). NULL = vuelo anterior al registro de aviones; no hay FK: el avión vive en otro servicio.
     avion_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # Versión del mapa de asientos: sube en cada cambio de asientos (reserva, cancelación, cambio). Permite
+    # detectar que el formulario del cliente está desactualizado (control de concurrencia optimista).
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 # Columns added after the first release. Existing databases get them through add_column_if_missing.
@@ -71,6 +74,7 @@ VUELO_ACTIVO_DDL = "BIT NOT NULL DEFAULT 1"
 VUELO_HORA_DDL = "VARCHAR(5) NOT NULL DEFAULT '08:00'"
 VUELO_HORA_LLEGADA_DDL = "VARCHAR(5) NULL"
 VUELO_AVION_DDL = "INTEGER NULL"
+VUELO_VERSION_DDL = "INTEGER NOT NULL DEFAULT 0"
 
 
 class AsientoVuelo(Base):
@@ -80,6 +84,14 @@ class AsientoVuelo(Base):
     __table_args__ = (
         UniqueConstraint("vuelo_id", "codigo", name="uq_asiento_vuelo_codigo"),
         CheckConstraint("columna IN ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H')", name="ck_asiento_columna"),
+        # Una reserva ocupa como máximo un asiento: la base de datos lo garantiza aunque una operación concurrente llegue tarde.
+        Index(
+            "uq_asiento_reserva",
+            "reserva_id",
+            unique=True,
+            sqlite_where=text("reserva_id IS NOT NULL"),
+            postgresql_where=text("reserva_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

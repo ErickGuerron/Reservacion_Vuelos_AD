@@ -20,7 +20,7 @@ def _asientos_en_vuelos(monkeypatch):
     monkeypatch.setattr(
         reservas_main,
         "reservar_lote_s3",
-        lambda vuelo_id, items: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
+        lambda vuelo_id, items, version=None: {reserva_id: asiento or "1A" for reserva_id, asiento in items},
     )
     monkeypatch.setattr(gestion_main, "cancelar_asientos_s3", lambda vuelo_id, reserva_id: None)
     monkeypatch.setattr(gestion_main, "restaurar_asiento_s3", lambda vuelo_id, reserva_id, asiento: None)

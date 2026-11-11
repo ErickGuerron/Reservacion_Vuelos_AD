@@ -18,7 +18,16 @@ from shared.cors import enable_cors
 from shared.db import add_column_if_missing, create_tables, session_factory
 from shared.errors import ApiError, errores, register_error_handlers
 from shared.horarios import FRANJAS, estimar, franja_de, validar_horario
-from shared.models import VUELO_ACTIVO_DDL, VUELO_AVION_DDL, VUELO_HORA_DDL, VUELO_HORA_LLEGADA_DDL, AsientoVuelo, Base, Vuelo
+from shared.models import (
+    VUELO_ACTIVO_DDL,
+    VUELO_AVION_DDL,
+    VUELO_HORA_DDL,
+    VUELO_HORA_LLEGADA_DDL,
+    VUELO_VERSION_DDL,
+    AsientoVuelo,
+    Base,
+    Vuelo,
+)
 from shared.security import current_admin_email
 from shared.validacion import validar_iata, validar_solo_numero
 
@@ -28,6 +37,7 @@ add_column_if_missing(engine, "vuelos", "activo", VUELO_ACTIVO_DDL)
 add_column_if_missing(engine, "vuelos", "hora", VUELO_HORA_DDL)
 add_column_if_missing(engine, "vuelos", "hora_llegada", VUELO_HORA_LLEGADA_DDL)
 add_column_if_missing(engine, "vuelos", "avion_id", VUELO_AVION_DDL)
+add_column_if_missing(engine, "vuelos", "version", VUELO_VERSION_DDL)
 
 # S6 Aviones: de allí sale la capacidad (número de asientos) de cada vuelo nuevo o editado.
 AVIONES_URL = os.getenv("AVIONES_SERVICE_URL", "http://localhost:5006")
@@ -166,6 +176,7 @@ class MapaAsientosOut(BaseModel):
     filas: int
     columnas: list[str]
     asientosLibres: int
+    version: int = Field(description="Versión del mapa: cambia con cada cambio de asientos del vuelo")
     asientos: list[AsientoOut]
 
 
@@ -197,8 +208,9 @@ def _to_dict(vuelo: Vuelo) -> dict:
     }
 
 
-def _flight_or_404(db, vuelo_id: int) -> Vuelo:
-    vuelo = db.get(Vuelo, vuelo_id)
+def _flight_or_404(db, vuelo_id: int, bloquear: bool = False) -> Vuelo:
+    # `bloquear` toma un lock de fila (SELECT ... FOR UPDATE) hasta el commit; SQLite lo ignora.
+    vuelo = db.get(Vuelo, vuelo_id, with_for_update=bloquear)
     if vuelo is None:
         raise ApiError(404, "VUELO_NO_EXISTE", "El vuelo no existe.")
     return vuelo
@@ -294,7 +306,7 @@ def detalle_vuelo(vuelo_id: int):
 )
 def mapa_asientos(vuelo_id: int):
     with SessionLocal() as db:
-        _vuelo_publico(db, vuelo_id)
+        vuelo = _vuelo_publico(db, vuelo_id)
         asientos = (
             db.query(AsientoVuelo)
             .filter(AsientoVuelo.vuelo_id == vuelo_id)
@@ -306,6 +318,7 @@ def mapa_asientos(vuelo_id: int):
             "filas": max((a.fila for a in asientos), default=0),
             "columnas": sorted({a.columna for a in asientos}),
             "asientosLibres": sum(1 for a in asientos if a.reserva_id is None),
+            "version": vuelo.version or 0,
             "asientos": [
                 {"codigo": a.codigo, "fila": a.fila, "columna": a.columna, "ocupado": a.reserva_id is not None}
                 for a in asientos
@@ -460,21 +473,39 @@ def _descontar_disponible(db, vuelo_id: int) -> None:
     actualizados = (
         db.query(Vuelo)
         .filter(Vuelo.id == vuelo_id, Vuelo.asientos_disponibles > 0)
-        .update({Vuelo.asientos_disponibles: Vuelo.asientos_disponibles - 1}, synchronize_session=False)
+        .update(
+            {Vuelo.asientos_disponibles: Vuelo.asientos_disponibles - 1, Vuelo.version: Vuelo.version + 1},
+            synchronize_session=False,
+        )
     )
     if actualizados != 1:
         raise ApiError(409, "SIN_ASIENTOS", "El vuelo no tiene asientos disponibles.")
 
 
-def _descontar_disponibles(db, vuelo_id: int, cantidad: int) -> None:
-    """Descuenta `cantidad` asientos de una vez; falla si no alcanzan (nada queda descontado)."""
+def _descontar_disponibles(db, vuelo_id: int, cantidad: int, version: int | None = None) -> None:
+    """Descuenta `cantidad` asientos y sube la versión del mapa en un solo UPDATE condicional.
+
+    Si `version` llega y ya no es la del vuelo, el mapa que vio el cliente está desactualizado:
+    409 MAPA_DESACTUALIZADO y nada queda descontado. Sin `version` se comporta como antes.
+    """
+    filtros = [Vuelo.id == vuelo_id, Vuelo.asientos_disponibles >= cantidad]
+    if version is not None:
+        filtros.append(Vuelo.version == version)
     actualizados = (
         db.query(Vuelo)
-        .filter(Vuelo.id == vuelo_id, Vuelo.asientos_disponibles >= cantidad)
-        .update({Vuelo.asientos_disponibles: Vuelo.asientos_disponibles - cantidad}, synchronize_session=False)
+        .filter(*filtros)
+        .update(
+            {Vuelo.asientos_disponibles: Vuelo.asientos_disponibles - cantidad, Vuelo.version: Vuelo.version + 1},
+            synchronize_session=False,
+        )
     )
-    if actualizados != 1:
-        raise ApiError(409, "SIN_ASIENTOS", "El vuelo no tiene asientos disponibles.")
+    if actualizados == 1:
+        return
+    if version is not None:
+        actual = db.query(Vuelo.version).filter(Vuelo.id == vuelo_id).scalar()
+        if actual is not None and actual != version:
+            raise ApiError(409, "MAPA_DESACTUALIZADO", "El mapa de asientos cambió. Actualice la selección.")
+    raise ApiError(409, "SIN_ASIENTOS", "El vuelo no tiene asientos disponibles.")
 
 
 def _marcar_si_libre(db, asiento_id: int, reserva_id: int) -> bool:
@@ -536,6 +567,7 @@ class ItemLoteIn(BaseModel):
 
 class LoteIn(BaseModel):
     reservas: list[ItemLoteIn] = Field(min_length=1, max_length=MAX_ASIENTOS)
+    version: int | None = Field(default=None, description="Versión del mapa que vio el cliente; si cambió, se rechaza")
 
 
 class AsignacionOut(BaseModel):
@@ -563,7 +595,7 @@ def reservar_lote(vuelo_id: int, datos: LoteIn):
         if not vuelo.activo:
             raise ApiError(409, "VUELO_INACTIVO", "El vuelo no está disponible para reservas.")
         _validar_ventana_reserva(vuelo)
-        _descontar_disponibles(db, vuelo_id, len(datos.reservas))
+        _descontar_disponibles(db, vuelo_id, len(datos.reservas), datos.version)
         asignados = []
         for item in datos.reservas:
             codigo = (item.asiento or "").strip().upper() or None
@@ -583,7 +615,8 @@ def _liberar(db, reserva_id: int, vuelo_id: int | None = None) -> int:
     for asiento in asientos:
         asiento.reserva_id = None
         db.query(Vuelo).filter(Vuelo.id == asiento.vuelo_id).update(
-            {Vuelo.asientos_disponibles: Vuelo.asientos_disponibles + 1}, synchronize_session=False
+            {Vuelo.asientos_disponibles: Vuelo.asientos_disponibles + 1, Vuelo.version: Vuelo.version + 1},
+            synchronize_session=False,
         )
     return len(asientos)
 
@@ -623,6 +656,7 @@ def cancelar_asientos_reserva(reserva_id: int, datos: CancelacionIn):
 class CambioAsientoIn(BaseModel):
     vueloId: int
     asiento: str = Field(min_length=1, max_length=10)
+    version: int | None = Field(default=None, description="Versión del mapa que vio el cliente; si cambió, se rechaza")
 
 
 @app.post(
@@ -634,8 +668,11 @@ class CambioAsientoIn(BaseModel):
 def cambiar_asiento_reserva(reserva_id: int, datos: CambioAsientoIn):
     codigo = datos.asiento.strip().upper()
     with SessionLocal() as db:
-        vuelo = _flight_or_404(db, datos.vueloId)
+        # Bloquea el vuelo: dos cambios sobre el mismo vuelo no pueden leer el estado viejo a la vez.
+        vuelo = _flight_or_404(db, datos.vueloId, bloquear=True)
         _validar_ventana_reserva(vuelo)
+        if datos.version is not None and vuelo.version != datos.version:
+            raise ApiError(409, "MAPA_DESACTUALIZADO", "El mapa de asientos cambió. Actualice la selección.")
         nuevo = db.query(AsientoVuelo).filter(AsientoVuelo.vuelo_id == datos.vueloId, AsientoVuelo.codigo == codigo).first()
         if nuevo is None:
             raise ApiError(404, "ASIENTO_NO_EXISTE", "El asiento no existe en este vuelo.")
@@ -646,10 +683,13 @@ def cambiar_asiento_reserva(reserva_id: int, datos: CambioAsientoIn):
         )
         if actual is not None and actual.id == nuevo.id:
             return {"vueloId": datos.vueloId, "asiento": codigo}
-        # Primero se reclama el asiento nuevo. Si está ocupado, se responde 409 y no se libera el actual.
-        if not _marcar_si_libre(db, nuevo.id, reserva_id):
-            raise ApiError(409, "ASIENTO_OCUPADO", "El asiento ya está ocupado.")
+        # Primero se libera el actual (la base de datos admite una sola fila por reserva), luego se reclama el nuevo.
+        # Si el nuevo está ocupado, se responde 409 y la transacción sin commit deshace la liberación.
         if actual is not None:
             actual.reserva_id = None
+            db.flush()
+        if not _marcar_si_libre(db, nuevo.id, reserva_id):
+            raise ApiError(409, "ASIENTO_OCUPADO", "El asiento ya está ocupado.")
+        db.query(Vuelo).filter(Vuelo.id == datos.vueloId).update({Vuelo.version: Vuelo.version + 1}, synchronize_session=False)
         db.commit()
         return {"vueloId": datos.vueloId, "asiento": codigo}

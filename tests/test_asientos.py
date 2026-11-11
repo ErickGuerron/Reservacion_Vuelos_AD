@@ -369,6 +369,26 @@ def test_lote_pide_un_token_valido(enlace_a_vuelos):
     assert response.status_code == 401
 
 
+def test_una_reserva_no_puede_tener_dos_asientos_a_la_vez(enlace_a_vuelos):
+    from sqlalchemy.exc import IntegrityError
+
+    from shared.models import AsientoVuelo
+    from vuelos import main as vuelos_main
+
+    vuelo_id = _crear_vuelo_admin()
+    reserva = reservas.post(
+        "/api/reservas", json={"vueloId": vuelo_id, "pasajero": "Ana Torres", "asiento": "1A"}, headers=CLIENTE
+    ).json()
+
+    with vuelos_main.SessionLocal() as db:
+        otro = db.query(AsientoVuelo).filter(AsientoVuelo.vuelo_id == vuelo_id, AsientoVuelo.codigo == "1B").one()
+        otro.reserva_id = reserva["id"]
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+    assert _ocupados(vuelo_id) == ["1A"]
+
+
 def test_cambio_de_asiento_que_falla_no_mueve_la_reserva(enlace_a_vuelos):
     vuelo_id = _crear_vuelo_admin()
     reserva = reservas.post(

@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from urllib.parse import quote_plus
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import sessionmaker
 
@@ -83,6 +83,26 @@ def postgres_connect_args(name: str) -> dict:
     return {"options": f"-csearch_path={POSTGRES_SCHEMAS[name]}"}
 
 
+def _fijar_esquema_al_conectar(schema: str):
+    """Listener that sets the search_path on every new connection.
+
+    The Supabase pooler ignores the startup option `-csearch_path`, so the option alone
+    sent unqualified tables to `public`. A SET on each connection is honored everywhere.
+    """
+
+    def _listener(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute(f"SET search_path TO {schema}")
+        finally:
+            cursor.close()
+        # Confirmar: sin commit el SET vive en una transacción que el pool deshace al devolver la conexión,
+        # y la siguiente petición vuelve a `public`.
+        dbapi_connection.commit()
+
+    return _listener
+
+
 def _sqlserver_url(database: str) -> str:
     server = os.getenv("SQLSERVER_SERVER", "localhost")
     driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server")
@@ -120,7 +140,19 @@ def session_factory(name: str):
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(url, connect_args={"check_same_thread": False})
     elif url.startswith("postgresql"):
-        engine = create_engine(url, pool_pre_ping=True, connect_args=postgres_connect_args(name))
+        # Supabase (modo sesión) admite 15 clientes en total para todo el proyecto: un engine por proceso,
+        # una conexión y sin overflow. Las peticiones de un mismo proceso esperan su turno (pool_timeout).
+        # Sin pool_pre_ping: cada préstamo haría un SELECT 1 extra (~170 ms a Supabase). pool_recycle
+        # descarta conexiones antes de que el pooler las cierre por inactividad.
+        engine = create_engine(
+            url,
+            pool_size=int(os.getenv("DB_POOL_SIZE", "1")),
+            max_overflow=0,
+            pool_timeout=30,
+            pool_recycle=240,
+            connect_args=postgres_connect_args(name),
+        )
+        event.listen(engine, "connect", _fijar_esquema_al_conectar(POSTGRES_SCHEMAS[name]))
     else:
         _create_sqlserver_database_if_missing(SQLSERVER_DATABASES[name])
         engine = create_engine(url, pool_pre_ping=True)
